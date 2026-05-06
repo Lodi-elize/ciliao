@@ -1,0 +1,17 @@
+services:
+  ciliao-server:
+    build:
+      context: ../../apps/server
+      dockerfile: Dockerfile
+    image: ciliao-server:latest
+    container_name: ciliao-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "4000:4000"
+    volumes:
+      - ciliao-avatars:/app/uploads/avatars
+
+volumes:
+  ciliao-avatars:

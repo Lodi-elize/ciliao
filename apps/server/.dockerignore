@@ -1,0 +1,10 @@
+target/*
+!target/server-0.0.1-SNAPSHOT.jar
+data/
+node_modules/
+dist/
+test/
+*.log
+.git/
+.gitignore
+HELP.md

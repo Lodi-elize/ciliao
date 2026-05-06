@@ -1,0 +1,40 @@
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+*.apk
+*.aab
+*.ipa
+apps/mobile/build-output/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/app/.cxx/
+apps/mobile/android/build/
+apps/server/data/
+apps/server/dist/
+apps/server/target/
+deploy/server-upload/
+
+# Local runtime state
+data/
+logs/
+.omx/
+.expo/
+.expo-shared/
+*.log
+hs_err_pid*.log
+
+# Local machine config and secrets
+.env
+.env.*
+!.env.example
+deploy/server/.env
+local.properties
+apps/mobile/android/local.properties
+
+# Local screenshots and debug captures
+/app-running*.png
+/emulator*.png
+/beijing-time-verified.png

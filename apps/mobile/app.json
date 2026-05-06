@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "次聊",
+    "slug": "nfc-chat",
+    "version": "0.1.0",
+    "scheme": "nfcchat",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.prototype.nfcchat",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Use NFC cards to quickly add friends."
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["NDEF"]
+      }
+    },
+    "android": {
+      "package": "com.prototype.nfcchat",
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1f1730"
+      },
+      "permissions": ["android.permission.NFC"]
+    },
+    "plugins": [
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Use NFC cards to quickly add friends."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:4000"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+    "name":  "nfc-chat-prototype",
+    "version":  "0.1.0",
+    "private":  true,
+    "workspaces":  [
+                       "apps/server",
+                       "apps/mobile"
+                   ],
+    "scripts":  {
+                    "dev:server":  "npm --workspace apps/server run dev",
+                    "android:stable":  "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-emulator-stable.ps1 -KillExisting",
+                    "test":  "npm run test --workspaces --if-present",
+                    "typecheck":  "npm run typecheck --workspaces --if-present"
+                },
+    "dependencies":  {
+                         "react":  "19.1.0",
+                         "react-dom":  "19.1.0",
+                         "react-native":  "0.81.5",
+                         "react-native-web":  "0.21.2"
+                     },
+    "devDependencies":  {
+                            "typescript":  "^5.9.3"
+                        },
+    "overrides":  {
+                      "react":  "19.1.0",
+                      "react-dom":  "19.1.0",
+                      "react-native":  "0.81.5"
+                  }
+}
