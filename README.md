@@ -1,8 +1,8 @@
-# 次聊 NFC Chat Prototype
+# 次聊 NFC Chat Prototype ✨
 
-次聊是一个用于验证 NFC 加好友和一对一聊天流程的移动端原型项目。项目包含一个 Expo / React Native App 和一个后端服务，支持账号登录、手机号 mock 注册、通讯录、实时消息、NFC invite payload 和手动 invite fallback。
+次聊是一个用于验证 NFC 加好友和一对一聊天流程的移动端原型项目。项目包含一个 Expo / React Native App 和一个后端服务，支持账号登录、手机号 mock 注册、通讯录、实时消息、NFC invite payload 和手动 invite fallback。目标是让“碰一下就加好友，然后开始聊天”这条主链路跑得轻快又清楚。
 
-## 项目结构
+## 项目结构 🧭
 
 ```text
 .
@@ -15,7 +15,7 @@
 └── README.md
 ```
 
-## 技术栈
+## 技术栈 🛠️
 
 - 移动端：Expo 54、React Native 0.81、React 19、Zustand、AsyncStorage、react-native-nfc-manager
 - 后端主实现：Spring Boot 3.5、Spring Web、Spring Security、Spring Data JPA、WebSocket、Flyway
@@ -24,30 +24,30 @@
 - 测试：Vitest
 - 类型检查：TypeScript
 
-## 功能范围
+## 功能范围 🎯
 
 已包含：
 
-- 用户名 + 密码注册和登录
-- 手机号 + mock 短信验证码注册
-- 自动登录、退出登录、修改密码
-- 通讯录和双向好友关系
-- NFC invite 添加好友
-- 手动 invite fallback，便于模拟器、浏览器和无 NFC 设备调试
-- 一对一文字聊天
-- Socket.IO 实时消息推送
+- ✅ 用户名 + 密码注册和登录
+- ✅ 手机号 + mock 短信验证码注册
+- ✅ 自动登录、退出登录、修改密码
+- ✅ 通讯录和双向好友关系
+- ✅ NFC invite 添加好友
+- ✅ 手动 invite fallback，便于模拟器、浏览器和无 NFC 设备调试
+- ✅ 一对一文字聊天
+- ✅ Socket.IO 实时消息推送
 
 暂不包含：
 
-- 真实短信服务
-- 生产级数据库
-- 后台管理系统
-- 密码找回
-- 第三方登录
-- 群聊、图片消息、语音消息
-- 生产级安全、风控和审计
+- 🚧 真实短信服务
+- 🚧 生产级数据库
+- 🚧 后台管理系统
+- 🚧 密码找回
+- 🚧 第三方登录
+- 🚧 群聊、图片消息、语音消息
+- 🚧 生产级安全、风控和审计
 
-## 本地环境准备
+## 本地环境准备 🚀
 
 安装依赖：
 
@@ -104,7 +104,7 @@ npm --workspace apps/mobile run android
 npm --workspace apps/mobile run ios
 ```
 
-## 测试账号
+## 测试账号 🧪
 
 首次启动后端时，如果数据文件不存在，会自动创建 3 个 seed 测试账号：
 
@@ -119,7 +119,7 @@ npm --workspace apps/mobile run ios
 - `alice` 和 `bob` 互为好友
 - `mika` 和 `bob` 互为好友
 
-## 数据库和数据存储
+## 数据库和数据存储 🗄️
 
 当前项目有两套后端形态：
 
@@ -183,7 +183,7 @@ npm run dev:server
 
 下次启动 Node 原型后端时会重新生成 seed 用户。Spring Boot 后端的数据重置取决于当前使用的 H2 或 MySQL 数据库。
 
-## 后端接口概览
+## 后端接口概览 🔌
 
 常用接口：
 
@@ -210,7 +210,7 @@ npm run dev:server
 Authorization: Bearer <token>
 ```
 
-## NFC Invite Payload
+## NFC Invite Payload 📡
 
 NFC tag 可以写入 NDEF URI 或 text record：
 
@@ -220,11 +220,11 @@ nfcchat://add-friend?userId=bob
 
 测试时也可以直接在 App 里使用手动 invite fallback。新注册用户会生成真实 `user id`，可以用后端返回的用户 id 组成 invite payload。
 
-## 真机运行说明
+## 真机运行说明 📱
 
 因为项目使用了 `react-native-nfc-manager`，完整 NFC 功能不能依赖 Expo Go，需要使用 development build 或正式安装包。
 
-### Android 真机
+### Android 真机 🤖
 
 1. 让电脑和手机连接同一个 Wi-Fi。
 2. 查看电脑局域网 IP，例如 `192.168.1.20`。
@@ -270,7 +270,7 @@ apps/mobile/build-output
 
 如果使用已有 APK，需要确认它构建时写入的 API 地址能被手机访问。手机上的 `localhost` 指向手机自身，不是开发电脑。
 
-### iOS 真机
+### iOS 真机 🍎
 
 iOS 真机需要 macOS、Xcode 和 Apple 开发者签名。运行前设置后端地址：
 
@@ -280,7 +280,7 @@ EXPO_PUBLIC_API_URL=http://电脑IP:4000 npm --workspace apps/mobile run ios
 
 `apps/mobile/app.json` 已配置 NFC 权限说明和 NDEF entitlements。
 
-## 常用命令
+## 常用命令 ⚡
 
 ```bash
 # 安装依赖
@@ -309,7 +309,7 @@ npm test
 npm run typecheck
 ```
 
-## 验收流程
+## 验收流程 ✅
 
 1. 启动后端。
 2. 启动 App。
@@ -322,7 +322,7 @@ npm run typecheck
 9. 重启 App，确认自动登录和聊天记录仍然存在。
 10. 修改密码后退出登录，确认旧密码失效，新密码可登录。
 
-## 部署建议
+## 部署建议 🌐
 
 当前项目适合局域网测试和功能验证。如果要长期部署给真实用户使用，建议先完成：
 
@@ -344,6 +344,6 @@ Spring Boot Docker 部署说明在：
 deploy/server/README.md
 ```
 
-## 备注
+## 备注 💬
 
 这是一个面向 NFC 社交聊天流程的原型项目，目标是快速验证登录、加好友、通讯录和实时聊天主链路。当前实现以本地开发和真机测试为主，生产化前需要补齐数据库、安全、运维和应用发布相关能力。
