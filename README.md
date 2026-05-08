@@ -1,6 +1,6 @@
 # 次聊 NFC Chat Prototype ✨
 
-次聊是一个用于验证 NFC 加好友和一对一聊天流程的移动端原型项目。项目包含一个 Expo / React Native App 和一个后端服务，支持账号登录、手机号 mock 注册、通讯录、实时消息、NFC invite payload 和手动 invite fallback。目标是让“碰一下就加好友，然后开始聊天”这条主链路跑得轻快又清楚。
+次聊是一个用于验证 NFC 加好友和一对一聊天流程的移动端原型项目。项目包含一个 Expo / React Native App 和一个 Spring Boot 后端服务，支持账号登录、手机号 mock 注册、账户资料、好友搜索、好友申请、通讯录、实时消息、NFC invite payload、NFC 读取事件记录和手动 invite fallback。目标是让“碰一下就发起好友申请，对方同意后开始聊天”这条主链路跑得轻快又清楚。
 
 ## 项目结构 🧭
 
@@ -31,16 +31,21 @@
 - ✅ 用户名 + 密码注册和登录
 - ✅ 手机号 + mock 短信验证码注册
 - ✅ 自动登录、退出登录、修改密码
+- ✅ 账户资料、昵称、个性签名和头像设置
 - ✅ 通讯录和双向好友关系
-- ✅ NFC invite 添加好友
+- ✅ username / userId / 手机号搜索用户
+- ✅ 发送、同意、拒绝好友申请
+- ✅ NFC invite 发起好友申请
+- ✅ NFC 读取事件记录，便于后续统计和排查
 - ✅ 手动 invite fallback，便于模拟器、浏览器和无 NFC 设备调试
+- ✅ 登录恢复后自动刷新联系人、待处理申请和聊天记录
 - ✅ 一对一文字聊天
 - ✅ Socket.IO 实时消息推送
 
 暂不包含：
 
 - 🚧 真实短信服务
-- 🚧 生产级数据库
+- 🚧 生产级数据库备份和迁移运维
 - 🚧 后台管理系统
 - 🚧 密码找回
 - 🚧 第三方登录
@@ -153,6 +158,15 @@ SPRING_DATASOURCE_DRIVER=com.mysql.cj.jdbc.Driver
 apps/server/src/main/resources/db/migration
 ```
 
+当前迁移包含：
+
+| 文件 | 说明 |
+| --- | --- |
+| `V1__initial_chat_schema.sql` | 初始用户、联系人、会话和消息表 |
+| `V2__add_user_signature.sql` | 用户个性签名 |
+| `V3__add_nfc_read_events.sql` | NFC 读取事件记录 |
+| `V4__add_friend_requests.sql` | 好友申请和申请状态 |
+
 Node.js 原型后端仍保留本地 JSON 文件存储：
 
 ```text
@@ -199,8 +213,14 @@ npm run dev:server
 | `POST` | `/auth/logout` | 退出登录 |
 | `POST` | `/auth/change-password` | 修改密码 |
 | `GET` | `/contacts` | 获取通讯录 |
-| `POST` | `/contacts` | 添加好友 |
+| `POST` | `/contacts` | 直接添加好友（保留接口） |
 | `GET` | `/invites/:userId` | 查看邀请用户 |
+| `POST` | `/friend-search` | 通过 username、userId 或手机号搜索用户 |
+| `GET` | `/friend-requests/incoming` | 获取待处理好友申请 |
+| `POST` | `/friend-requests` | 创建好友申请 |
+| `POST` | `/friend-requests/:requestId/accept` | 同意好友申请并建立双向好友关系 |
+| `POST` | `/friend-requests/:requestId/reject` | 拒绝好友申请 |
+| `POST` | `/nfc/read-events` | 记录 NFC 读取事件 |
 | `GET` | `/messages/:contactId` | 获取聊天记录 |
 | `POST` | `/messages` | 发送消息 |
 
@@ -218,7 +238,7 @@ NFC tag 可以写入 NDEF URI 或 text record：
 nfcchat://add-friend?userId=bob
 ```
 
-测试时也可以直接在 App 里使用手动 invite fallback。新注册用户会生成真实 `user id`，可以用后端返回的用户 id 组成 invite payload。
+App 读取 NFC 内容后会解析目标用户，记录一次 NFC 读取事件，并走好友申请流程。对方同意申请后，双方才会出现在彼此通讯录中。测试时也可以直接在 App 里使用手动 invite fallback。新注册用户会生成真实 `user id`，可以用后端返回的用户 id 组成 invite payload。
 
 ## 真机运行说明 📱
 
@@ -307,6 +327,9 @@ npm test
 
 # 类型检查
 npm run typecheck
+
+# 打包 Spring Boot jar 并准备服务器上传目录
+.\scripts\prepare-server-upload.ps1
 ```
 
 ## 验收流程 ✅
@@ -315,12 +338,13 @@ npm run typecheck
 2. 启动 App。
 3. 使用 `alice / password123` 登录 A 设备。
 4. 使用 `bob / password123` 登录 B 设备，或注册一个新账号。
-5. A 通过 NFC 或手动 invite 添加 B。
-6. 确认 A 和 B 通讯录里都出现对方。
-7. A 给 B 发送文字消息。
-8. B 收到消息并回复。
-9. 重启 App，确认自动登录和聊天记录仍然存在。
-10. 修改密码后退出登录，确认旧密码失效，新密码可登录。
+5. A 通过 NFC 或手动 invite 搜索到 B，并发送好友申请。
+6. B 在待处理好友申请中同意 A。
+7. 确认 A 和 B 通讯录里都出现对方。
+8. A 给 B 发送文字消息。
+9. B 收到消息并回复。
+10. 重启 App，确认自动登录、待处理申请刷新和聊天记录仍然存在。
+11. 修改密码后退出登录，确认旧密码失效，新密码可登录。
 
 ## 部署建议 🌐
 
@@ -342,6 +366,18 @@ Spring Boot Docker 部署说明在：
 
 ```text
 deploy/server/README.md
+```
+
+本地可以用脚本生成服务器上传目录：
+
+```powershell
+.\scripts\prepare-server-upload.ps1
+```
+
+生成位置：
+
+```text
+deploy/server-upload/ciliao-server-docker
 ```
 
 ## 备注 💬
