@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api } from '../../api/client';
 import { login, registerPhone, registerUsername } from '../../state/appStore';
 import { colors, fonts, radius, shadow, spacing } from '../../ui/theme';
@@ -57,7 +57,7 @@ export function AuthScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={getKeyboardAvoidingBehavior()}>
       <View style={styles.orbA} />
       <View style={styles.orbB} />
       <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
@@ -120,8 +120,12 @@ export function AuthScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
+}
+
+function getKeyboardAvoidingBehavior() {
+  return Platform.OS === 'ios' ? 'padding' : 'height';
 }
 
 function Tab({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {

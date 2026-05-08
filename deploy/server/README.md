@@ -1,34 +1,29 @@
 # 次聊后端 Docker 部署
 
-本目录用于把 Spring Boot 后端部署到服务器 Docker。不要把真实 `.env` 提交到仓库。
+当前部署方式把 Spring Boot jar 作为文件挂载到容器内：
 
-## 1. 本地打包 jar
+```text
+../../apps/server/target/server-0.0.1-SNAPSHOT.jar -> /app/server.jar
+```
 
-在项目根目录执行：
+这样 Docker 镜像只需要在首次部署或 Dockerfile 变化时重建。以后更新后端代码，只要替换 jar 并重启容器。
+
+## 本地打包 jar
 
 ```powershell
 cd E:\workPlace\次聊\apps\server
 .\mvnw.cmd clean package -DskipTests
 ```
 
-确认生成：
+生成：
 
 ```text
 apps/server/target/server-0.0.1-SNAPSHOT.jar
 ```
 
-## 2. 上传到服务器
+## 首次部署
 
-把这些内容上传到服务器同一个目录，例如 `/opt/ciliao`：
-
-```text
-apps/server/Dockerfile
-apps/server/target/server-0.0.1-SNAPSHOT.jar
-deploy/server/docker-compose.yml
-deploy/server/.env.example
-```
-
-服务器目录建议：
+把上传包放到服务器，例如：
 
 ```text
 /opt/ciliao/
@@ -38,23 +33,28 @@ deploy/server/.env.example
   deploy/server/.env
 ```
 
-## 3. 创建 .env
-
-在服务器上：
+服务器执行：
 
 ```bash
 cd /opt/ciliao/deploy/server
 cp .env.example .env
 nano .env
+docker compose up -d --build
 ```
 
-把 `SPRING_DATASOURCE_PASSWORD` 改成真实密码。
+## 后续更新
 
-## 4. 启动 Docker 服务
+本地重新打包 jar 后，只覆盖服务器文件：
+
+```text
+/opt/ciliao/apps/server/target/server-0.0.1-SNAPSHOT.jar
+```
+
+然后服务器执行：
 
 ```bash
 cd /opt/ciliao/deploy/server
-docker compose up -d --build
+docker compose restart ciliao-server
 ```
 
 查看日志：
@@ -70,44 +70,14 @@ curl http://127.0.0.1:4000/health
 curl http://122.51.23.38:4000/health
 ```
 
-应返回：
+成功返回：
 
 ```json
 {"ok":true}
 ```
 
-## 5. 放行端口
-
-服务器系统防火墙：
-
-```bash
-sudo ufw allow 4000/tcp
-```
-
-云服务器安全组也要放行：
-
-```text
-入站 TCP 4000
-来源 0.0.0.0/0
-```
-
-## 6. 更新后端版本
-
-本地重新打包 jar，上传覆盖服务器的：
-
-```text
-/opt/ciliao/apps/server/target/server-0.0.1-SNAPSHOT.jar
-```
-
-然后服务器执行：
-
-```bash
-cd /opt/ciliao/deploy/server
-docker compose up -d --build
-```
-
 ## 注意
 
+- `.env` 只放服务器，不要提交真实密码。
+- Flyway 迁移会在后端启动时自动执行。
 - APK 不包含后端，手机 App 只是连接 `http://122.51.23.38:4000`。
-- MySQL 密码只放服务器 `.env`，不要写入移动端或仓库。
-- 当前第一版使用 HTTP IP + 端口，后续正式使用建议加域名、HTTPS 和 Nginx。

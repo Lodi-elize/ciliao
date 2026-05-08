@@ -34,6 +34,18 @@ public final class Dto {
 
   public record ContactsEnvelope(List<UserProfile> contacts) {}
 
+  public record FriendRequest(
+      Long id,
+      UserProfile requester,
+      UserProfile recipient,
+      String status,
+      Instant createdAt,
+      Instant respondedAt) {}
+
+  public record FriendRequestsEnvelope(List<FriendRequest> requests) {}
+
+  public record FriendRequestEnvelope(FriendRequest request) {}
+
   public record MessagesEnvelope(List<ChatMessage> messages) {}
 
   public record MessageEnvelope(ChatMessage message) {}
@@ -56,9 +68,21 @@ public final class Dto {
 
   public record AddContactRequest(String friendId) {}
 
+  public record SearchFriendRequest(String query) {}
+
+  public record CreateFriendRequestRequest(String userId) {}
+
   public record SendMessageRequest(String recipientId, String text) {}
 
   public record UpdateProfileRequest(String displayName, String signature) {}
+
+  public record RecordNfcReadEventRequest(
+      String status,
+      String rawPayload,
+      String parsedUserId,
+      String payloadType,
+      String errorCode,
+      String errorMessage) {}
 
   public record WsEnvelope(String type, String requestId, Object payload) {}
 }

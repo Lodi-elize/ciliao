@@ -11,6 +11,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
+      - ../../apps/server/target/server-0.0.1-SNAPSHOT.jar:/app/server.jar:ro
       - ciliao-avatars:/app/uploads/avatars
 
 volumes:

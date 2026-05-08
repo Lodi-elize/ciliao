@@ -66,7 +66,7 @@ export function ChatScreen({ contactId, onBack }: ChatScreenProps) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.select({ ios: 'padding', android: undefined })}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.select({ ios: 'padding', android: 'height' })}>
       <View style={styles.backdropA} />
       <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>

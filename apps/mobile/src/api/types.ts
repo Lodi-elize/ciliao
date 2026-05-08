@@ -25,8 +25,28 @@ export type AuthResult = {
   user: UserProfile;
 };
 
+export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export type FriendRequest = {
+  id: number;
+  requester: UserProfile;
+  recipient: UserProfile;
+  status: FriendRequestStatus;
+  createdAt: string;
+  respondedAt?: string | null;
+};
+
 export type MockSmsResult = {
   phone: string;
   code: string;
   expiresAt: string;
+};
+
+export type NfcReadEventPayload = {
+  status: 'SUCCESS' | 'FAILURE';
+  rawPayload?: string | null;
+  parsedUserId?: string | null;
+  payloadType?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
 };

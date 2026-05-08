@@ -1,6 +1,6 @@
 ﻿import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { ChangePasswordScreen } from './features/auth/ChangePasswordScreen';
 import { ChatScreen } from './features/chat/ChatScreen';
@@ -121,17 +121,17 @@ export default function App() {
         </AppShell>
       </View>
       <Modal visible={showAddFriend} transparent animationType="fade" onRequestClose={() => setShowAddFriend(false)}>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={getKeyboardAvoidingBehavior()}>
           <Pressable accessibilityLabel="关闭添加好友面板" style={styles.dismissLayer} onPress={() => setShowAddFriend(false)} />
           <View testID="modal-frame" style={[styles.modalPhoneFrame, frameSize]}>
             <Pressable accessibilityLabel="关闭添加好友面板" style={styles.dismissLayer} onPress={() => setShowAddFriend(false)} />
             <View style={styles.sheetWrap}>
-            <View style={[styles.addFriendSheet, { maxHeight: Math.floor(frameSize.height * 0.86) }]}> 
+            <View style={[styles.addFriendSheet, { maxHeight: Math.floor(frameSize.height * 0.72) }]}>
               <View style={styles.sheetHandle} />
               <View style={styles.sheetHeader}>
                 <View style={styles.sheetTitleGroup}>
                   <Text style={styles.sheetTitle}>添加伙伴</Text>
-                  <Text style={styles.sheetCopy}>扫描 NFC 卡片，或粘贴邀请内容。</Text>
+                  <Text style={styles.sheetCopy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
                 </View>
                 <Pressable accessibilityLabel="关闭" style={styles.closeButton} onPress={() => setShowAddFriend(false)}>
                   <Text style={styles.closeText}>×</Text>
@@ -143,7 +143,7 @@ export default function App() {
             </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -151,6 +151,10 @@ export default function App() {
 
 function useStatusBarPadding() {
   return Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 0;
+}
+
+function getKeyboardAvoidingBehavior() {
+  return Platform.OS === 'ios' ? 'padding' : 'height';
 }
 
 function getShellCopy(tab: AppTab) {

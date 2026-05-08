@@ -1,6 +1,8 @@
 package com.ciliao.server.service;
 
 import com.ciliao.server.api.Dto.ChatMessage;
+import com.ciliao.server.api.Dto.FriendRequest;
+import com.ciliao.server.domain.FriendRequestEntity;
 import com.ciliao.server.api.Dto.UserProfile;
 import com.ciliao.server.domain.MessageEntity;
 import com.ciliao.server.domain.UserEntity;
@@ -30,5 +32,16 @@ public final class Mapper {
         message.getRecipientId(),
         message.getText(),
         message.getCreatedAt());
+  }
+
+  public static FriendRequest toFriendRequest(
+      FriendRequestEntity request, UserEntity requester, UserEntity recipient) {
+    return new FriendRequest(
+        request.getId(),
+        toProfile(requester),
+        toProfile(recipient),
+        request.getStatus().name(),
+        request.getCreatedAt(),
+        request.getRespondedAt());
   }
 }

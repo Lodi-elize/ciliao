@@ -1,5 +1,5 @@
 import { API_URL } from './config';
-import { AuthResult, ChatMessage, MockSmsResult, UserProfile } from './types';
+import { AuthResult, ChatMessage, FriendRequest, MockSmsResult, NfcReadEventPayload, UserProfile } from './types';
 
 type ApiErrorBody = {
   error?: string;
@@ -91,9 +91,33 @@ export const api = {
     formData.append('file', file as unknown as Blob);
     return requestMultipart<{ user: UserProfile }>('/auth/avatar', formData);
   },
+  recordNfcReadEvent: (payload: NfcReadEventPayload) =>
+    request<{ ok: boolean }>('/nfc/read-events', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
   users: () => request<{ users: UserProfile[] }>('/users'),
   contacts: () => request<{ contacts: UserProfile[] }>('/contacts'),
   resolveInvite: (userId: string) => request<{ user: UserProfile }>(`/invites/${userId}`),
+  searchFriend: (query: string) =>
+    request<{ user: UserProfile }>('/friend-search', {
+      method: 'POST',
+      body: JSON.stringify({ query })
+    }),
+  incomingFriendRequests: () => request<{ requests: FriendRequest[] }>('/friend-requests/incoming'),
+  createFriendRequest: (userId: string) =>
+    request<{ request: FriendRequest }>('/friend-requests', {
+      method: 'POST',
+      body: JSON.stringify({ userId })
+    }),
+  acceptFriendRequest: (requestId: number) =>
+    request<{ contacts: UserProfile[] }>(`/friend-requests/${requestId}/accept`, {
+      method: 'POST'
+    }),
+  rejectFriendRequest: (requestId: number) =>
+    request<{ request: FriendRequest }>(`/friend-requests/${requestId}/reject`, {
+      method: 'POST'
+    }),
   addContact: (friendId: string) =>
     request<{ contacts: UserProfile[] }>('/contacts', {
       method: 'POST',

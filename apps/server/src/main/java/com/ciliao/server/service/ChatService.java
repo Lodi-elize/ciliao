@@ -2,11 +2,14 @@ package com.ciliao.server.service;
 
 import com.ciliao.server.api.Dto.AuthResult;
 import com.ciliao.server.api.Dto.ChatMessage;
+import com.ciliao.server.api.Dto.FriendRequest;
 import com.ciliao.server.api.Dto.MockSmsResult;
 import com.ciliao.server.api.Dto.UserProfile;
 import com.ciliao.server.domain.ContactEntity;
 import com.ciliao.server.domain.ConversationEntity;
 import com.ciliao.server.domain.CredentialEntity;
+import com.ciliao.server.domain.FriendRequestEntity;
+import com.ciliao.server.domain.FriendRequestStatus;
 import com.ciliao.server.domain.MessageEntity;
 import com.ciliao.server.domain.MockSmsCodeEntity;
 import com.ciliao.server.domain.SessionEntity;
@@ -14,6 +17,7 @@ import com.ciliao.server.domain.UserEntity;
 import com.ciliao.server.repo.ContactRepository;
 import com.ciliao.server.repo.ConversationRepository;
 import com.ciliao.server.repo.CredentialRepository;
+import com.ciliao.server.repo.FriendRequestRepository;
 import com.ciliao.server.repo.MessageRepository;
 import com.ciliao.server.repo.MockSmsCodeRepository;
 import com.ciliao.server.repo.SessionRepository;
@@ -40,6 +44,7 @@ public class ChatService {
   private final SessionRepository sessions;
   private final MockSmsCodeRepository smsCodes;
   private final ContactRepository contacts;
+  private final FriendRequestRepository friendRequests;
   private final ConversationRepository conversations;
   private final MessageRepository messages;
   private final PasswordEncoder passwordEncoder;
@@ -50,6 +55,7 @@ public class ChatService {
       SessionRepository sessions,
       MockSmsCodeRepository smsCodes,
       ContactRepository contacts,
+      FriendRequestRepository friendRequests,
       ConversationRepository conversations,
       MessageRepository messages,
       PasswordEncoder passwordEncoder) {
@@ -58,6 +64,7 @@ public class ChatService {
     this.sessions = sessions;
     this.smsCodes = smsCodes;
     this.contacts = contacts;
+    this.friendRequests = friendRequests;
     this.conversations = conversations;
     this.messages = messages;
     this.passwordEncoder = passwordEncoder;
@@ -84,6 +91,19 @@ public class ChatService {
 
   public UserProfile getUser(String userId) {
     return Mapper.toProfile(getUserEntity(userId));
+  }
+
+  public UserProfile findUserForFriendSearch(String viewerId, String queryInput) {
+    getUserEntity(viewerId);
+    String query = queryInput == null ? "" : queryInput.trim();
+    if (query.isBlank()) {
+      throw new AppException("请输入账号、ID 或手机号。", 400, "FRIEND_QUERY_REQUIRED");
+    }
+    UserEntity user = users.findById(query)
+        .or(() -> users.findByUsernameIgnoreCase(query.toLowerCase(Locale.ROOT)))
+        .or(() -> users.findByPhone(normalizePhoneLenient(query)))
+        .orElseThrow(() -> new AppException("没有找到这个用户。", 404, "FRIEND_USER_NOT_FOUND"));
+    return Mapper.toProfile(user);
   }
 
   @Transactional
@@ -195,6 +215,61 @@ public class ChatService {
     ensureContact(ownerId, friendId);
     ensureContact(friendId, ownerId);
     return listContacts(ownerId);
+  }
+
+  public List<FriendRequest> listIncomingFriendRequests(String userId) {
+    getUserEntity(userId);
+    return friendRequests.findByRecipientIdOrderByCreatedAtDesc(userId).stream()
+        .map(this::toFriendRequest)
+        .toList();
+  }
+
+  @Transactional
+  public FriendRequest createFriendRequest(String requesterId, String recipientId) {
+    if (requesterId.equals(recipientId)) {
+      throw new AppException("不能给自己发送好友申请。", 400, "SELF_FRIEND_REQUEST");
+    }
+    getUserEntity(requesterId);
+    getUserEntity(recipientId);
+    if (contacts.existsByOwnerIdAndFriendId(requesterId, recipientId)) {
+      throw new AppException("你们已经是好友了。", 409, "CONTACT_ALREADY_EXISTS");
+    }
+    if (friendRequests.existsByRequesterIdAndRecipientIdAndStatus(
+        requesterId, recipientId, FriendRequestStatus.PENDING)) {
+      throw new AppException("好友申请已发送，请等待对方处理。", 409, "FRIEND_REQUEST_PENDING");
+    }
+    if (friendRequests.existsByRequesterIdAndRecipientIdAndStatus(
+        recipientId, requesterId, FriendRequestStatus.PENDING)) {
+      throw new AppException("对方已经向你发送申请，请到申请列表处理。", 409, "INCOMING_FRIEND_REQUEST_PENDING");
+    }
+    FriendRequestEntity request = friendRequests
+        .findByRequesterIdAndRecipientId(requesterId, recipientId)
+        .orElseGet(FriendRequestEntity::new);
+    request.setRequesterId(requesterId);
+    request.setRecipientId(recipientId);
+    request.setStatus(FriendRequestStatus.PENDING);
+    request.setCreatedAt(Instant.now());
+    request.setRespondedAt(null);
+    return toFriendRequest(friendRequests.save(request));
+  }
+
+  @Transactional
+  public FriendRequest acceptFriendRequest(String userId, Long requestId) {
+    FriendRequestEntity request = getPendingRequestForRecipient(userId, requestId);
+    request.setStatus(FriendRequestStatus.ACCEPTED);
+    request.setRespondedAt(Instant.now());
+    friendRequests.save(request);
+    ensureContact(userId, request.getRequesterId());
+    ensureContact(request.getRequesterId(), userId);
+    return toFriendRequest(request);
+  }
+
+  @Transactional
+  public FriendRequest rejectFriendRequest(String userId, Long requestId) {
+    FriendRequestEntity request = getPendingRequestForRecipient(userId, requestId);
+    request.setStatus(FriendRequestStatus.REJECTED);
+    request.setRespondedAt(Instant.now());
+    return toFriendRequest(friendRequests.save(request));
   }
 
   @Transactional
@@ -319,6 +394,28 @@ public class ChatService {
       contact.setCreatedAt(Instant.now());
       contacts.save(contact);
     }
+  }
+
+  private FriendRequestEntity getPendingRequestForRecipient(String userId, Long requestId) {
+    if (requestId == null) {
+      throw new AppException("好友申请不存在。", 404, "FRIEND_REQUEST_NOT_FOUND");
+    }
+    FriendRequestEntity request = friendRequests.findById(requestId)
+        .orElseThrow(() -> new AppException("好友申请不存在。", 404, "FRIEND_REQUEST_NOT_FOUND"));
+    if (!request.getRecipientId().equals(userId)) {
+      throw new AppException("只能处理发给你的好友申请。", 403, "FRIEND_REQUEST_FORBIDDEN");
+    }
+    if (request.getStatus() != FriendRequestStatus.PENDING) {
+      throw new AppException("这个好友申请已经处理过了。", 409, "FRIEND_REQUEST_ALREADY_HANDLED");
+    }
+    return request;
+  }
+
+  private FriendRequest toFriendRequest(FriendRequestEntity request) {
+    return Mapper.toFriendRequest(
+        request,
+        getUserEntity(request.getRequesterId()),
+        getUserEntity(request.getRecipientId()));
   }
 
   private ConversationEntity ensureConversation(String userA, String userB) {

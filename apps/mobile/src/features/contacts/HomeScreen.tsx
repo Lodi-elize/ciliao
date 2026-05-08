@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../api/client';
 import { useAppStore } from '../../state/appStore';
 import { Avatar } from '../../ui/Avatar';
@@ -12,19 +12,57 @@ type HomeScreenProps = {
 
 export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
   const contacts = useAppStore((state) => state.contacts);
+  const incomingFriendRequests = useAppStore((state) => state.incomingFriendRequests);
   const setContacts = useAppStore((state) => state.setContacts);
+  const setIncomingFriendRequests = useAppStore((state) => state.setIncomingFriendRequests);
+  const removeIncomingFriendRequest = useAppStore((state) => state.removeIncomingFriendRequest);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
     setError(null);
-    api
-      .contacts()
-      .then((result) => setContacts(result.contacts))
+    Promise.all([api.contacts(), api.incomingFriendRequests()])
+      .then(([contactsResult, requestsResult]) => {
+        setContacts(contactsResult.contacts);
+        setIncomingFriendRequests(requestsResult.requests.filter((request) => request.status === 'PENDING'));
+      })
       .catch((cause) => setError(cause instanceof Error ? cause.message : '无法加载通讯录。'))
       .finally(() => setLoading(false));
-  }, [setContacts]);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [setContacts, setIncomingFriendRequests]);
+
+  const acceptRequest = async (requestId: number) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const result = await api.acceptFriendRequest(requestId);
+      setContacts(result.contacts);
+      removeIncomingFriendRequest(requestId);
+      Alert.alert('已同意', '你们现在可以开始聊天了。');
+    } catch (cause) {
+      Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法同意好友申请。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectRequest = async (requestId: number) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await api.rejectFriendRequest(requestId);
+      removeIncomingFriendRequest(requestId);
+      Alert.alert('已拒绝', '好友申请已处理。');
+    } catch (cause) {
+      Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法拒绝好友申请。');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -36,6 +74,33 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
 
       {loading ? <ActivityIndicator /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {incomingFriendRequests.length > 0 ? (
+        <View style={styles.requestPanel}>
+          <View style={styles.requestHeader}>
+            <Text style={styles.requestTitle}>好友申请</Text>
+            <Pressable onPress={loadData} disabled={loading}>
+              <Text style={styles.refreshText}>刷新</Text>
+            </Pressable>
+          </View>
+          {incomingFriendRequests.map((request, index) => (
+            <View key={request.id} style={styles.requestCard}>
+              <Avatar label={request.requester.avatar || request.requester.displayName} imageUrl={request.requester.avatarUrl} size={46} accent={index % 2 === 0 ? 'mint' : 'lavender'} />
+              <View style={styles.requestBody}>
+                <Text style={styles.requestName}>{request.requester.displayName}</Text>
+                <Text style={styles.requestHint}>{request.requester.username ? `@${request.requester.username}` : request.requester.phone ?? request.requester.id}</Text>
+              </View>
+              <View style={styles.requestActions}>
+                <Pressable style={[styles.requestButton, styles.acceptButton]} onPress={() => acceptRequest(request.id)} disabled={loading}>
+                  <Text style={styles.acceptText}>同意</Text>
+                </Pressable>
+                <Pressable style={[styles.requestButton, styles.rejectButton]} onPress={() => rejectRequest(request.id)} disabled={loading}>
+                  <Text style={styles.rejectText}>拒绝</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <FlatList
         data={contacts}
@@ -44,7 +109,7 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
         ListEmptyComponent={
           <Pressable style={styles.emptyCard} onPress={onAddFriend}>
             <Text style={styles.emptyTitle}>通讯录还是空的</Text>
-            <Text style={styles.emptyCopy}>点右上角 +，扫描 NFC 卡片或输入邀请内容。</Text>
+            <Text style={styles.emptyCopy}>点右上角 +，扫描 NFC 卡片，或输入 username、ID、手机号发送好友申请。</Text>
           </Pressable>
         }
         renderItem={({ item, index }) => (
@@ -70,6 +135,20 @@ const styles = StyleSheet.create({
   summaryCopy: { color: colors.muted, lineHeight: 20, marginTop: spacing.xs, fontWeight: '700' },
   list: { paddingBottom: spacing.xl },
   error: { color: colors.danger, fontWeight: '800', marginBottom: spacing.sm },
+  requestPanel: { gap: spacing.sm, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.md, backgroundColor: '#f4fffa', borderWidth: 2, borderColor: '#b8f0db', ...shadow },
+  requestHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  requestTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+  refreshText: { color: colors.coral, fontWeight: '900' },
+  requestCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.lg, padding: spacing.sm, backgroundColor: 'white' },
+  requestBody: { flex: 1, minWidth: 0 },
+  requestName: { color: colors.ink, fontWeight: '900' },
+  requestHint: { color: colors.muted, marginTop: 2, fontWeight: '700' },
+  requestActions: { flexDirection: 'row', flexShrink: 0, gap: spacing.xs },
+  requestButton: { minHeight: 34, borderRadius: radius.md, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center' },
+  acceptButton: { backgroundColor: colors.ink },
+  rejectButton: { backgroundColor: '#f3e8ff' },
+  acceptText: { color: colors.paper, fontWeight: '900' },
+  rejectText: { color: colors.ink, fontWeight: '900' },
   emptyCard: { borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.line, ...shadow },
   emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: '900' },
   emptyCopy: { color: colors.muted, marginTop: spacing.xs, lineHeight: 20, fontWeight: '700' },

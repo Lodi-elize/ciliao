@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ApiError } from '../../api/client';
 import { updateProfile, uploadAvatar, useAppStore } from '../../state/appStore';
@@ -68,7 +68,7 @@ export function ProfileSettingsScreen({ onBack }: ProfileSettingsScreenProps) {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={getKeyboardAvoidingBehavior()}>
       <View style={styles.header}>
         <Pressable accessibilityLabel="返回" onPress={onBack} style={styles.backButton}>
           <Text style={styles.backText}>‹</Text>
@@ -79,34 +79,36 @@ export function ProfileSettingsScreen({ onBack }: ProfileSettingsScreenProps) {
         </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.avatarRow}>
-          <Avatar label={currentUser?.avatar || displayName || '次聊'} imageUrl={currentUser?.avatarUrl} size={82} accent="sky" />
-          <Pressable style={styles.secondaryButton} onPress={pickAvatar} disabled={uploading}>
-            <Text style={styles.secondaryText}>{uploading ? '上传中...' : '更换头像'}</Text>
+      <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <View style={styles.avatarRow}>
+            <Avatar label={currentUser?.avatar || displayName || '次聊'} imageUrl={currentUser?.avatarUrl} size={82} accent="sky" />
+            <Pressable style={styles.secondaryButton} onPress={pickAvatar} disabled={uploading}>
+              <Text style={styles.secondaryText}>{uploading ? '上传中...' : '更换头像'}</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.label}>昵称</Text>
+          <TextInput value={displayName} onChangeText={setDisplayName} style={styles.input} maxLength={40} />
+
+          <Text style={styles.label}>个性签名</Text>
+          <TextInput
+            value={signature}
+            onChangeText={setSignature}
+            style={[styles.input, styles.signatureInput]}
+            maxLength={80}
+            multiline
+            textAlignVertical="top"
+          />
+
+          {message ? <Text style={styles.message}>{message}</Text> : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Pressable style={styles.primaryButton} onPress={saveProfile} disabled={saving}>
+            <Text style={styles.primaryText}>{saving ? '保存中...' : '保存资料'}</Text>
           </Pressable>
         </View>
-
-        <Text style={styles.label}>昵称</Text>
-        <TextInput value={displayName} onChangeText={setDisplayName} style={styles.input} maxLength={40} />
-
-        <Text style={styles.label}>个性签名</Text>
-        <TextInput
-          value={signature}
-          onChangeText={setSignature}
-          style={[styles.input, styles.signatureInput]}
-          maxLength={80}
-          multiline
-          textAlignVertical="top"
-        />
-
-        {message ? <Text style={styles.message}>{message}</Text> : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable style={styles.primaryButton} onPress={saveProfile} disabled={saving}>
-          <Text style={styles.primaryText}>{saving ? '保存中...' : '保存资料'}</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
 
       <Modal visible={successVisible} transparent animationType="fade" onRequestClose={onBack}>
         <View style={styles.modalBackdrop}>
@@ -119,8 +121,12 @@ export function ProfileSettingsScreen({ onBack }: ProfileSettingsScreenProps) {
           </View>
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
+}
+
+function getKeyboardAvoidingBehavior() {
+  return Platform.OS === 'ios' ? 'padding' : 'height';
 }
 
 function extensionFromMime(mimeType?: string | null) {
@@ -137,6 +143,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   title: { color: colors.paper, fontFamily: fonts.display, fontSize: 26, fontWeight: '900' },
   subtitle: { color: '#ddccff', marginTop: 2, fontWeight: '800' },
+  scrollContent: { flexGrow: 1, paddingBottom: spacing.xl },
   card: { gap: spacing.sm, margin: spacing.lg, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, ...shadow },
   avatarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm },
   label: { color: colors.ink, fontWeight: '900', marginTop: spacing.xs },
