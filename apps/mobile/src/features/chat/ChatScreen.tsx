@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Keyboard, KeyboardAvoidingView, LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { api } from '../../api/client';
 import { ChatMessage, UserProfile } from '../../api/types';
 import { useAppStore } from '../../state/appStore';
@@ -22,11 +22,15 @@ export function ChatScreen({ contactId, onBack }: ChatScreenProps) {
   const setMessages = useAppStore((state) => state.setMessages);
   const addMessage = useAppStore((state) => state.addMessage);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listHeightRef = useRef(0);
+  const contentHeightRef = useRef(0);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
   const contact = useMemo<UserProfile | undefined>(() => contacts.find((item) => item.id === contactId), [contactId, contacts]);
+  const latestMessageId = messages[messages.length - 1]?.id;
 
   useEffect(() => {
     if (!currentUser || !contactId) return;
@@ -37,10 +41,49 @@ export function ChatScreen({ contactId, onBack }: ChatScreenProps) {
   }, [contactId, currentUser, setMessages]);
 
   useEffect(() => {
-    if (!messages.length) return;
-    const timer = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    return () => clearTimeout(timer);
-  }, [messages.length]);
+    if (!latestMessageId) return;
+    scrollToLatest(true, 0);
+    return () => clearScrollTimer();
+  }, [latestMessageId]);
+
+  useEffect(() => {
+    const eventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const subscription = Keyboard.addListener(eventName, () => scrollToLatest(true, 180));
+    return () => {
+      subscription.remove();
+      clearScrollTimer();
+    };
+  }, []);
+
+  const clearScrollTimer = () => {
+    if (!scrollTimerRef.current) return;
+    clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = null;
+  };
+
+  const scrollToLatest = (animated = true, delay = 40) => {
+    clearScrollTimer();
+    scrollTimerRef.current = setTimeout(() => {
+      const offset = Math.max(contentHeightRef.current - listHeightRef.current, 0);
+      listRef.current?.scrollToOffset({ offset, animated });
+      requestAnimationFrame(() => {
+        const nextOffset = Math.max(contentHeightRef.current - listHeightRef.current, 0);
+        listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+      });
+      scrollTimerRef.current = null;
+    }, delay);
+  };
+
+  const handleListLayout = (event: LayoutChangeEvent) => {
+    listHeightRef.current = event.nativeEvent.layout.height;
+    scrollToLatest(false, 80);
+  };
+
+  const handleContentSizeChange = (_width: number, height: number) => {
+    contentHeightRef.current = height;
+    scrollToLatest(false, 0);
+    setTimeout(() => scrollToLatest(false, 0), 120);
+  };
 
   const send = async () => {
     if (!currentUser || !contactId || !draft.trim() || sending) return;
@@ -85,6 +128,9 @@ export function ChatScreen({ contactId, onBack }: ChatScreenProps) {
         contentContainerStyle={styles.listContent}
         data={messages}
         keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={handleContentSizeChange}
+        onLayout={handleListLayout}
         ListEmptyComponent={<Text style={styles.empty}>还没有聊天记录，发一句打个招呼吧。</Text>}
         renderItem={({ item }) => {
           const mine = item.senderId === currentUser?.id;
@@ -137,7 +183,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, marginTop: 2, fontWeight: '700' },
   error: { color: colors.danger, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, fontWeight: '800' },
   list: { flex: 1 },
-  listContent: { flexGrow: 1, gap: spacing.sm, padding: spacing.md },
+  listContent: { flexGrow: 1, gap: spacing.sm, padding: spacing.md, paddingBottom: spacing.lg },
   empty: { marginTop: spacing.xl, textAlign: 'center', color: colors.muted, fontWeight: '800' },
   bubble: { maxWidth: '78%', borderRadius: radius.lg, padding: spacing.md, ...shadow },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.coral },
@@ -146,7 +192,7 @@ const styles = StyleSheet.create({
   theirsText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
   mineTime: { color: '#ffeaf0', fontSize: 11, marginTop: 4, fontWeight: '800' },
   theirsTime: { color: colors.muted, fontSize: 11, marginTop: 4, fontWeight: '800' },
-  composer: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, backgroundColor: 'rgba(255,255,255,0.82)', borderTopWidth: 1, borderTopColor: colors.line, overflow: 'hidden' },
+  composer: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, paddingBottom: spacing.md, backgroundColor: 'rgba(255,255,255,0.82)', borderTopWidth: 1, borderTopColor: colors.line, overflow: 'hidden' },
   input: { flex: 1, minWidth: 0, borderRadius: radius.lg, backgroundColor: 'white', paddingHorizontal: spacing.md, minHeight: 46, color: colors.ink, fontWeight: '800' },
   sendButton: { flexShrink: 0, borderRadius: radius.lg, backgroundColor: colors.ink, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center' },
   disabledButton: { opacity: 0.45 },

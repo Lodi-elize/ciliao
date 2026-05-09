@@ -8,11 +8,14 @@ import { useChatSocket } from './features/chat/socket';
 import { HomeScreen } from './features/contacts/HomeScreen';
 import { MessagesTab } from './features/messages/MessagesTab';
 import { AddFriendPanel } from './features/nfc/AddFriendPanel';
+import { NfcInviteLaunchDialog } from './features/nfc/NfcInviteLaunchDialog';
+import { useNfcInviteLaunch } from './features/nfc/useNfcInviteLaunch';
 import { MeTab } from './features/profile/MeTab';
 import { ProfileSettingsScreen } from './features/profile/ProfileSettingsScreen';
 import { AppShell, AppTab } from './features/shell/AppShell';
 import { hydrateAppStore, useAppStore } from './state/appStore';
-import { colors, layout, radius, shadow, spacing } from './ui/theme';
+import { colors, layout, spacing } from './ui/theme';
+import { getModalKeyboardAvoidingBehavior, modalStyles } from './ui/modal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('messages');
@@ -24,6 +27,7 @@ export default function App() {
   const frameSize = usePhoneFrameSize();
   const statusBarPadding = useStatusBarPadding();
   const phoneFrameStyle = [styles.phoneFrame, frameSize, { paddingTop: statusBarPadding }];
+  const nfcInviteLaunch = useNfcInviteLaunch();
   useChatSocket();
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export default function App() {
             <Text style={styles.loadingText}>正在恢复登录状态...</Text>
           </View>
         </View>
+        <NfcInviteLaunchDialog {...nfcInviteLaunch} />
       </SafeAreaView>
     );
   }
@@ -63,6 +68,7 @@ export default function App() {
         <View testID="app-frame" style={phoneFrameStyle}>
           <AuthScreen />
         </View>
+        <NfcInviteLaunchDialog {...nfcInviteLaunch} />
       </SafeAreaView>
     );
   }
@@ -74,6 +80,7 @@ export default function App() {
         <View testID="app-frame" style={phoneFrameStyle}>
           <ChangePasswordScreen onBack={() => setShowChangePassword(false)} />
         </View>
+        <NfcInviteLaunchDialog {...nfcInviteLaunch} />
       </SafeAreaView>
     );
   }
@@ -85,6 +92,7 @@ export default function App() {
         <View testID="app-frame" style={phoneFrameStyle}>
           <ProfileSettingsScreen onBack={() => setShowProfileSettings(false)} />
         </View>
+        <NfcInviteLaunchDialog {...nfcInviteLaunch} />
       </SafeAreaView>
     );
   }
@@ -96,6 +104,7 @@ export default function App() {
         <View testID="app-frame" style={phoneFrameStyle}>
           <ChatScreen contactId={activeContactId} onBack={() => setActiveContactId(null)} />
         </View>
+        <NfcInviteLaunchDialog {...nfcInviteLaunch} />
       </SafeAreaView>
     );
   }
@@ -121,40 +130,36 @@ export default function App() {
         </AppShell>
       </View>
       <Modal visible={showAddFriend} transparent animationType="fade" onRequestClose={() => setShowAddFriend(false)}>
-        <KeyboardAvoidingView style={styles.modalBackdrop} behavior={getKeyboardAvoidingBehavior()}>
-          <Pressable accessibilityLabel="关闭添加好友面板" style={styles.dismissLayer} onPress={() => setShowAddFriend(false)} />
+        <KeyboardAvoidingView style={modalStyles.backdrop} behavior={getModalKeyboardAvoidingBehavior()}>
+          <Pressable accessibilityLabel="关闭添加好友面板" style={modalStyles.scrim} onPress={() => setShowAddFriend(false)} />
           <View testID="modal-frame" style={[styles.modalPhoneFrame, frameSize]}>
-            <Pressable accessibilityLabel="关闭添加好友面板" style={styles.dismissLayer} onPress={() => setShowAddFriend(false)} />
-            <View style={styles.sheetWrap}>
-            <View style={[styles.addFriendSheet, { maxHeight: Math.floor(frameSize.height * 0.72) }]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeader}>
-                <View style={styles.sheetTitleGroup}>
-                  <Text style={styles.sheetTitle}>添加伙伴</Text>
-                  <Text style={styles.sheetCopy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
+            <View style={modalStyles.sheetWrap}>
+              <View style={[modalStyles.sheetSurface, { maxHeight: Math.floor(frameSize.height * 0.72) }]}>
+                <View style={modalStyles.handle} />
+                <View style={modalStyles.header}>
+                  <View style={modalStyles.titleGroup}>
+                    <Text style={modalStyles.title}>添加伙伴</Text>
+                    <Text style={modalStyles.copy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
+                  </View>
+                  <Pressable accessibilityLabel="关闭" style={modalStyles.closeButton} onPress={() => setShowAddFriend(false)}>
+                    <Text style={modalStyles.closeText}>×</Text>
+                  </Pressable>
                 </View>
-                <Pressable accessibilityLabel="关闭" style={styles.closeButton} onPress={() => setShowAddFriend(false)}>
-                  <Text style={styles.closeText}>×</Text>
-                </Pressable>
+                <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
+                  <AddFriendPanel onDone={() => setShowAddFriend(false)} />
+                </ScrollView>
               </View>
-              <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
-                <AddFriendPanel onDone={() => setShowAddFriend(false)} />
-              </ScrollView>
-            </View>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <NfcInviteLaunchDialog {...nfcInviteLaunch} />
     </SafeAreaView>
   );
 }
 
 function useStatusBarPadding() {
   return Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 0;
-}
-
-function getKeyboardAvoidingBehavior() {
-  return Platform.OS === 'ios' ? 'padding' : 'height';
 }
 
 function getShellCopy(tab: AppTab) {
@@ -187,24 +192,6 @@ const styles = StyleSheet.create({
   },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   loadingText: { color: colors.ink, fontWeight: '900' },
-  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(32,24,47,0.42)' },
-  dismissLayer: { ...StyleSheet.absoluteFillObject },
   modalPhoneFrame: { justifyContent: 'flex-end', overflow: 'hidden' },
-  sheetWrap: { width: '100%', alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.md },
-  addFriendSheet: {
-    width: '100%',
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: '#fff9ff',
-    ...shadow
-  },
-  sheetHandle: { alignSelf: 'center', width: 54, height: 5, borderRadius: radius.pill, marginBottom: spacing.md, backgroundColor: '#dbc9ef' },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
-  sheetTitleGroup: { flex: 1, minWidth: 0 },
-  sheetTitle: { color: colors.ink, fontSize: 24, fontWeight: '900' },
-  sheetCopy: { color: colors.muted, marginTop: 3, fontWeight: '700', lineHeight: 20 },
-  sheetScroll: { paddingBottom: spacing.xs },
-  closeButton: { flexShrink: 0, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink },
-  closeText: { color: colors.paper, fontSize: 26, lineHeight: 30, fontWeight: '900' }
+  sheetScroll: { paddingBottom: spacing.xs }
 });

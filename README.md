@@ -244,6 +244,66 @@ App 读取 NFC 内容后会解析目标用户，记录一次 NFC 读取事件，
 
 因为项目使用了 `react-native-nfc-manager`，完整 NFC 功能不能依赖 Expo Go，需要使用 development build 或正式安装包。
 
+## 安装与分发说明 📦
+
+### Android APK
+
+本项目当前稳定 APK 打包脚本会同时产出 debug 和 release 两个安装包：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-apks-stable.ps1
+```
+
+输出位置：
+
+```text
+apps/mobile/build-output/次聊-debug-stable.apk
+apps/mobile/build-output/次聊-release.apk
+```
+
+当前 `次聊-release.apk` 适合本地安装测试和交付预览，但 release 构建仍使用 debug keystore 签名。正式上架应用商店前，需要先配置生产 keystore。详细说明见：
+
+```text
+docs/android-apk-build-stable.md
+```
+
+### iPhone / TestFlight
+
+iPhone 用户不能直接安装 Android APK。面向 iPhone 用户分发时，推荐使用 Apple Developer Program + TestFlight：
+
+1. 注册 Apple Developer Program，通常为 99 美元/年。
+2. 在 App Store Connect 创建 App。
+3. 使用 EAS Build 或 macOS + Xcode 构建 iOS 包。
+4. 上传 build 到 App Store Connect。
+5. 在 TestFlight 中创建内部或外部测试组。
+6. 通过邮箱邀请测试用户，或创建公开邀请链接。
+
+TestFlight 本身不按测试用户收费，但使用 TestFlight / App Store Connect 分发通常需要 Apple Developer Program。外部测试首次可用前，Apple 可能会进行一次 Beta 审核。每个 TestFlight build 有有效期，过期后需要上传新 build。
+
+Windows 环境推荐使用 EAS 云构建：
+
+```bash
+npm install -g eas-cli
+eas login
+cd apps/mobile
+eas build:configure
+eas build --platform ios --profile production
+eas submit --platform ios
+```
+
+iOS 发布前建议先把移动端 API 地址切换为公网 HTTPS。iOS NFC 需要真机测试，模拟器不能验证 NFC 读卡链路。
+
+如果只是在自己的 iPhone 上调试，可以使用 macOS + Xcode + 免费 Apple Account 侧载开发包，但通常会有设备数和签名有效期限制，不适合普通用户分发。
+
+### HarmonyOS / 鸿蒙
+
+鸿蒙用户需要分情况处理：
+
+- 仍兼容 Android APK 的 HarmonyOS 手机：可以直接安装 `次聊-release.apk`，用户需要允许“安装未知来源应用”。
+- HarmonyOS NEXT / 纯血鸿蒙：不能直接安装当前 Android APK，需要单独开发或移植鸿蒙原生版本，并通过 AppGallery Connect、DevEco Studio、ArkTS / HarmonyOS SDK 等链路重新打包分发。
+
+因此短期测试可以先提供 APK 覆盖兼容 Android 的华为设备；如果要覆盖 HarmonyOS NEXT 用户，需要规划独立鸿蒙版本。
+
 ### Android 真机 🤖
 
 1. 让电脑和手机连接同一个 Wi-Fi。
@@ -321,6 +381,9 @@ npm --workspace apps/mobile run android
 
 # iOS 开发构建
 npm --workspace apps/mobile run ios
+
+# Android APK 稳定打包
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-apks-stable.ps1
 
 # 运行所有测试
 npm test

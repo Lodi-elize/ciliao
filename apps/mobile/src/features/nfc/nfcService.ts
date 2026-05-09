@@ -1,5 +1,10 @@
 import NfcManager, { Ndef, NfcTech } from 'react-native-nfc-manager';
 
+export async function isNfcSupported() {
+  await NfcManager.start();
+  return NfcManager.isSupported();
+}
+
 export async function readNfcInvitePayload(): Promise<string> {
   await NfcManager.start();
   try {

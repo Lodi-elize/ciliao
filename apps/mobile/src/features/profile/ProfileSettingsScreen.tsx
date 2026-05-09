@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ApiError } from '../../api/client';
 import { updateProfile, uploadAvatar, useAppStore } from '../../state/appStore';
 import { Avatar } from '../../ui/Avatar';
-import { colors, fonts, radius, shadow, spacing } from '../../ui/theme';
+import { colors, fonts, radius, spacing } from '../../ui/theme';
+import { modalStyles } from '../../ui/modal';
 
 type ProfileSettingsScreenProps = {
   onBack: () => void;
@@ -111,12 +112,12 @@ export function ProfileSettingsScreen({ onBack }: ProfileSettingsScreenProps) {
       </ScrollView>
 
       <Modal visible={successVisible} transparent animationType="fade" onRequestClose={onBack}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.successDialog}>
+        <View style={[modalStyles.backdrop, modalStyles.centeredBackdrop]}>
+          <View style={modalStyles.dialogSurface}>
             <Text style={styles.successTitle}>保存成功</Text>
             <Text style={styles.successCopy}>账户资料已更新。</Text>
-            <Pressable style={styles.successButton} onPress={onBack}>
-              <Text style={styles.successButtonText}>确定</Text>
+            <Pressable style={[modalStyles.button, modalStyles.buttonDark, styles.successButton]} onPress={onBack}>
+              <Text style={modalStyles.buttonTextPaper}>确定</Text>
             </Pressable>
           </View>
         </View>
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
   title: { color: colors.paper, fontFamily: fonts.display, fontSize: 26, fontWeight: '900' },
   subtitle: { color: '#ddccff', marginTop: 2, fontWeight: '800' },
   scrollContent: { flexGrow: 1, paddingBottom: spacing.xl },
-  card: { gap: spacing.sm, margin: spacing.lg, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, ...shadow },
+  card: { gap: spacing.sm, margin: spacing.lg, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel },
   avatarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.sm },
   label: { color: colors.ink, fontWeight: '900', marginTop: spacing.xs },
   input: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.ink, backgroundColor: '#fffaff', fontWeight: '800' },
@@ -155,10 +156,7 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.ink, fontWeight: '900' },
   message: { color: colors.success, fontWeight: '900' },
   error: { color: colors.danger, fontWeight: '900' },
-  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, backgroundColor: 'rgba(32,24,47,0.42)' },
-  successDialog: { width: '100%', maxWidth: 320, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, ...shadow },
   successTitle: { color: colors.ink, fontSize: 22, fontWeight: '900' },
   successCopy: { color: colors.muted, marginTop: spacing.sm, lineHeight: 20, fontWeight: '800' },
-  successButton: { alignItems: 'center', borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg, backgroundColor: colors.ink },
-  successButtonText: { color: colors.paper, fontWeight: '900' }
+  successButton: { marginTop: spacing.lg }
 });

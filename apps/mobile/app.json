@@ -22,7 +22,7 @@
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#1f1730"
+        "backgroundColor": "#f7fcff"
       },
       "permissions": ["android.permission.NFC"]
     },
@@ -35,7 +35,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://localhost:4000"
+      "apiUrl": "http://122.51.23.38:4000"
     }
   }
 }
