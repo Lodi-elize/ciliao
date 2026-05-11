@@ -3,7 +3,7 @@
 当前部署方式把 Spring Boot jar 作为文件挂载到容器内：
 
 ```text
-../../apps/server/target/server-0.0.1-SNAPSHOT.jar -> /app/server.jar
+../../apps/server/target/server-1.0.0.jar -> /app/server.jar
 ```
 
 这样 Docker 镜像只需要在首次部署或 Dockerfile 变化时重建。以后更新后端代码，只要替换 jar 并重启容器。
@@ -18,7 +18,7 @@ cd E:\workPlace\次聊\apps\server
 生成：
 
 ```text
-apps/server/target/server-0.0.1-SNAPSHOT.jar
+apps/server/target/server-1.0.0.jar
 ```
 
 ## 首次部署
@@ -28,7 +28,7 @@ apps/server/target/server-0.0.1-SNAPSHOT.jar
 ```text
 /opt/ciliao/
   apps/server/Dockerfile
-  apps/server/target/server-0.0.1-SNAPSHOT.jar
+  apps/server/target/server-1.0.0.jar
   deploy/server/docker-compose.yml
   deploy/server/.env
 ```
@@ -47,7 +47,7 @@ docker compose up -d --build
 本地重新打包 jar 后，只覆盖服务器文件：
 
 ```text
-/opt/ciliao/apps/server/target/server-0.0.1-SNAPSHOT.jar
+/opt/ciliao/apps/server/target/server-1.0.0.jar
 ```
 
 然后服务器执行：

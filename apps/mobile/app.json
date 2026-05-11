@@ -2,7 +2,7 @@
   "expo": {
     "name": "次聊",
     "slug": "nfc-chat",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "scheme": "nfcchat",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

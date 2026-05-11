@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $serverDir = Join-Path $repoRoot "apps\server"
 $uploadDir = Join-Path $repoRoot "deploy\server-upload\ciliao-server-docker"
-$jarName = "server-0.0.1-SNAPSHOT.jar"
+$jarName = "server-1.0.0.jar"
 $sourceJar = Join-Path $serverDir "target\$jarName"
 
 Write-Host "==> Build backend jar" -ForegroundColor Cyan

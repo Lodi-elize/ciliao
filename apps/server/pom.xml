@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.ciliao</groupId>
 	<artifactId>server</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>server</name>
 	<description>Ciliao chat backend</description>
 	<url/>
