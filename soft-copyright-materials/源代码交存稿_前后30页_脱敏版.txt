@@ -1,0 +1,3060 @@
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 1 页 / 共 103 页 =====
+00001: // ============================================================
+00002: // File: .\apps\mobile\src\api\client.ts
+00003: // ============================================================
+00004: import { API_URL } from './config';
+00005: import { AuthResult, ChatMessage, FriendRequest, MockSmsResult, NfcReadEventPayload, UserProfile } from './types';
+00006: 
+00007: type ApiErrorBody = {
+00008:   error?: string;
+00009:   code?: string;
+00010: };
+00011: 
+00012: export class ApiError extends Error {
+00013:   constructor(message: string, readonly status: number, readonly code = 'API_ERROR') {
+00014:     super(message);
+00015:   }
+00016: }
+00017: 
+00018: let authToken: string | null = null;
+00019: 
+00020: export function setApiToken(token: string | null) {
+00021:   authToken = token;
+00022: }
+00023: 
+00024: async function request<T>(path: string, init?: RequestInit): Promise<T> {
+00025:   const response = await fetch(`${API_URL}${path}`, {
+00026:     ...init,
+00027:     headers: {
+00028:       'content-type': 'application/json',
+00029:       ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+00030:       ...init?.headers
+00031:     }
+00032:   });
+00033: 
+00034:   if (!response.ok) {
+00035:     const body = (await response.json().catch(() => ({ error: response.statusText }))) as ApiErrorBody;
+00036:     throw new ApiError(body.error ?? '请求失败', response.status, body.code);
+00037:   }
+00038: 
+00039:   return response.json() as Promise<T>;
+00040: }
+00041: 
+00042: async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
+00043:   const response = await fetch(`${API_URL}${path}`, {
+00044:     method: 'POST',
+00045:     headers: {
+00046:       ...(authToken ? { authorization: `Bearer ${authToken}` } : {})
+00047:     },
+00048:     body: formData
+00049:   });
+00050: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 2 页 / 共 103 页 =====
+00051:   if (!response.ok) {
+00052:     const body = (await response.json().catch(() => ({ error: response.statusText }))) as ApiErrorBody;
+00053:     throw new ApiError(body.error ?? '请求失败', response.status, body.code);
+00054:   }
+00055: 
+00056:   return response.json() as Promise<T>;
+00057: }
+00058: 
+00059: export const api = {
+00060:   registerUsername: (payload: { username: string; password: string; displayName: string }) =>
+00061:     request<AuthResult>('/auth/register/username', {
+00062:       method: 'POST',
+00063:       body: JSON.stringify(payload)
+00064:     }),
+00065:   requestMockSms: (payload: { phone: string }) =>
+00066:     request<MockSmsResult>('/auth/mock-sms/request', {
+00067:       method: 'POST',
+00068:       body: JSON.stringify({ ...payload, purpose: 'register' })
+00069:     }),
+00070:   registerPhone: (payload: { phone: string; code: string; password: string; displayName: string }) =>
+00071:     request<AuthResult>('/auth/register/phone', {
+00072:       method: 'POST',
+00073:       body: JSON.stringify(payload)
+00074:     }),
+00075:   login: (identifier: string, password: string) =>
+00076:     request<AuthResult>('/auth/login', {
+00077:       method: 'POST',
+00078:       body: JSON.stringify({ identifier, password })
+00079:     }),
+00080:   me: () => request<{ user: UserProfile }>('/auth/me'),
+00081:   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
+00082:   changePassword: (oldPassword: string, newPassword: string) =>
+00083:     request<{ ok: boolean }>('/auth/change-password', {
+00084:       method: 'POST',
+00085:       body: JSON.stringify({ oldPassword, newPassword })
+00086:     }),
+00087:   updateProfile: (payload: { displayName?: string; signature?: string }) =>
+00088:     request<{ user: UserProfile }>('/auth/profile', {
+00089:       method: 'PATCH',
+00090:       body: JSON.stringify(payload)
+00091:     }),
+00092:   uploadAvatar: (file: { uri: string; name: string; type: string }) => {
+00093:     const formData = new FormData();
+00094:     formData.append('file', file as unknown as Blob);
+00095:     return requestMultipart<{ user: UserProfile }>('/auth/avatar', formData);
+00096:   },
+00097:   recordNfcReadEvent: (payload: NfcReadEventPayload) =>
+00098:     request<{ ok: boolean }>('/nfc/read-events', {
+00099:       method: 'POST',
+00100:       body: JSON.stringify(payload)
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 3 页 / 共 103 页 =====
+00101:     }),
+00102:   users: () => request<{ users: UserProfile[] }>('/users'),
+00103:   contacts: () => request<{ contacts: UserProfile[] }>('/contacts'),
+00104:   resolveInvite: (userId: string) => request<{ user: UserProfile }>(`/invites/${userId}`),
+00105:   searchFriend: (query: string) =>
+00106:     request<{ user: UserProfile }>('/friend-search', {
+00107:       method: 'POST',
+00108:       body: JSON.stringify({ query })
+00109:     }),
+00110:   incomingFriendRequests: () => request<{ requests: FriendRequest[] }>('/friend-requests/incoming'),
+00111:   createFriendRequest: (userId: string) =>
+00112:     request<{ request: FriendRequest }>('/friend-requests', {
+00113:       method: 'POST',
+00114:       body: JSON.stringify({ userId })
+00115:     }),
+00116:   acceptFriendRequest: (requestId: number) =>
+00117:     request<{ contacts: UserProfile[] }>(`/friend-requests/${requestId}/accept`, {
+00118:       method: 'POST'
+00119:     }),
+00120:   rejectFriendRequest: (requestId: number) =>
+00121:     request<{ request: FriendRequest }>(`/friend-requests/${requestId}/reject`, {
+00122:       method: 'POST'
+00123:     }),
+00124:   addContact: (friendId: string) =>
+00125:     request<{ contacts: UserProfile[] }>('/contacts', {
+00126:       method: 'POST',
+00127:       body: JSON.stringify({ friendId })
+00128:     }),
+00129:   messages: (contactId: string) => request<{ messages: ChatMessage[] }>(`/messages/${contactId}`),
+00130:   sendMessage: (recipientId: string, text: string) =>
+00131:     request<{ message: ChatMessage }>('/messages', {
+00132:       method: 'POST',
+00133:       body: JSON.stringify({ recipientId, text })
+00134:     })
+00135: };
+00136: 
+00137: // ============================================================
+00138: // File: .\apps\mobile\src\api\config.ts
+00139: // ============================================================
+00140: export const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://example.com:4000').replace(/\/$/, '');
+00141: 
+00142: // ============================================================
+00143: // File: .\apps\mobile\src\api\types.ts
+00144: // ============================================================
+00145: export type UserProfile = {
+00146:   id: string;
+00147:   username?: string;
+00148:   phone?: string;
+00149:   phoneVerified: boolean;
+00150:   displayName: string;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 4 页 / 共 103 页 =====
+00151:   avatar: string;
+00152:   avatarUrl?: string | null;
+00153:   signature?: string | null;
+00154:   createdAt: string;
+00155:   updatedAt: string;
+00156: };
+00157: 
+00158: export type ChatMessage = {
+00159:   id: string;
+00160:   conversationId: string;
+00161:   senderId: string;
+00162:   recipientId: string;
+00163:   text: string;
+00164:   createdAt: string;
+00165: };
+00166: 
+00167: export type AuthResult = {
+00168:   token: string;
+00169:   user: UserProfile;
+00170: };
+00171: 
+00172: export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+00173: 
+00174: export type FriendRequest = {
+00175:   id: number;
+00176:   requester: UserProfile;
+00177:   recipient: UserProfile;
+00178:   status: FriendRequestStatus;
+00179:   createdAt: string;
+00180:   respondedAt?: string | null;
+00181: };
+00182: 
+00183: export type MockSmsResult = {
+00184:   phone: string;
+00185:   code: string;
+00186:   expiresAt: string;
+00187: };
+00188: 
+00189: export type NfcReadEventPayload = {
+00190:   status: 'SUCCESS' | 'FAILURE';
+00191:   rawPayload?: string | null;
+00192:   parsedUserId?: string | null;
+00193:   payloadType?: string | null;
+00194:   errorCode?: string | null;
+00195:   errorMessage?: string | null;
+00196: };
+00197: 
+00198: // ============================================================
+00199: // File: .\apps\mobile\src\App.tsx
+00200: // ============================================================
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 5 页 / 共 103 页 =====
+00201: import { StatusBar } from 'expo-status-bar';
+00202: import { useEffect, useMemo, useState } from 'react';
+00203: import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+00204: import { AuthScreen } from './features/auth/AuthScreen';
+00205: import { ChangePasswordScreen } from './features/auth/ChangePasswordScreen';
+00206: import { ChatScreen } from './features/chat/ChatScreen';
+00207: import { useChatSocket } from './features/chat/socket';
+00208: import { HomeScreen } from './features/contacts/HomeScreen';
+00209: import { MessagesTab } from './features/messages/MessagesTab';
+00210: import { AddFriendPanel } from './features/nfc/AddFriendPanel';
+00211: import { NfcInviteLaunchDialog } from './features/nfc/NfcInviteLaunchDialog';
+00212: import { useNfcInviteLaunch } from './features/nfc/useNfcInviteLaunch';
+00213: import { MeTab } from './features/profile/MeTab';
+00214: import { ProfileSettingsScreen } from './features/profile/ProfileSettingsScreen';
+00215: import { AppShell, AppTab } from './features/shell/AppShell';
+00216: import { hydrateAppStore, useAppStore } from './state/appStore';
+00217: import { colors, layout, spacing } from './ui/theme';
+00218: import { getModalKeyboardAvoidingBehavior, modalStyles } from './ui/modal';
+00219: 
+00220: export default function App() {
+00221:   const [activeTab, setActiveTab] = useState<AppTab>('messages');
+00222:   const [activeContactId, setActiveContactId] = useState<string | null>(null);
+00223:   const [showChangePassword, setShowChangePassword] = useState(false);
+00224:   const [showProfileSettings, setShowProfileSettings] = useState(false);
+00225:   const [showAddFriend, setShowAddFriend] = useState(false);
+00226:   const authStatus = useAppStore((state) => state.authStatus);
+00227:   const frameSize = usePhoneFrameSize();
+00228:   const statusBarPadding = useStatusBarPadding();
+00229:   const phoneFrameStyle = [styles.phoneFrame, frameSize, { paddingTop: statusBarPadding }];
+00230:   const nfcInviteLaunch = useNfcInviteLaunch();
+00231:   useChatSocket();
+00232: 
+00233:   useEffect(() => {
+00234:     void hydrateAppStore();
+00235:   }, []);
+00236: 
+00237:   useEffect(() => {
+00238:     if (authStatus !== 'authenticated') {
+00239:       setActiveContactId(null);
+00240:       setShowChangePassword(false);
+00241:       setShowProfileSettings(false);
+00242:       setShowAddFriend(false);
+00243:       setActiveTab('messages');
+00244:     }
+00245:   }, [authStatus]);
+00246: 
+00247:   const shellCopy = useMemo(() => getShellCopy(activeTab), [activeTab]);
+00248: 
+00249:   if (authStatus === 'hydrating') {
+00250:     return (
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 6 页 / 共 103 页 =====
+00251:       <SafeAreaView style={styles.stage}>
+00252:         <StatusBar style="dark" />
+00253:         <View testID="app-frame" style={phoneFrameStyle}>
+00254:           <View style={styles.loading}>
+00255:             <ActivityIndicator />
+00256:             <Text style={styles.loadingText}>正在恢复登录状态...</Text>
+00257:           </View>
+00258:         </View>
+00259:         <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00260:       </SafeAreaView>
+00261:     );
+00262:   }
+00263: 
+00264:   if (authStatus === 'anonymous') {
+00265:     return (
+00266:       <SafeAreaView style={styles.stage}>
+00267:         <StatusBar style="dark" />
+00268:         <View testID="app-frame" style={phoneFrameStyle}>
+00269:           <AuthScreen />
+00270:         </View>
+00271:         <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00272:       </SafeAreaView>
+00273:     );
+00274:   }
+00275: 
+00276:   if (showChangePassword) {
+00277:     return (
+00278:       <SafeAreaView style={styles.stage}>
+00279:         <StatusBar style="dark" />
+00280:         <View testID="app-frame" style={phoneFrameStyle}>
+00281:           <ChangePasswordScreen onBack={() => setShowChangePassword(false)} />
+00282:         </View>
+00283:         <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00284:       </SafeAreaView>
+00285:     );
+00286:   }
+00287: 
+00288:   if (showProfileSettings) {
+00289:     return (
+00290:       <SafeAreaView style={styles.stage}>
+00291:         <StatusBar style="dark" />
+00292:         <View testID="app-frame" style={phoneFrameStyle}>
+00293:           <ProfileSettingsScreen onBack={() => setShowProfileSettings(false)} />
+00294:         </View>
+00295:         <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00296:       </SafeAreaView>
+00297:     );
+00298:   }
+00299: 
+00300:   if (activeContactId) {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 7 页 / 共 103 页 =====
+00301:     return (
+00302:       <SafeAreaView style={styles.stage}>
+00303:         <StatusBar style="dark" />
+00304:         <View testID="app-frame" style={phoneFrameStyle}>
+00305:           <ChatScreen contactId={activeContactId} onBack={() => setActiveContactId(null)} />
+00306:         </View>
+00307:         <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00308:       </SafeAreaView>
+00309:     );
+00310:   }
+00311: 
+00312:   return (
+00313:     <SafeAreaView style={styles.stage}>
+00314:       <StatusBar style="dark" />
+00315:       <View testID="app-frame" style={phoneFrameStyle}>
+00316:         <AppShell
+00317:           activeTab={activeTab}
+00318:           title={shellCopy.title}
+00319:           subtitle={shellCopy.subtitle}
+00320:           onTabChange={setActiveTab}
+00321:           onAddFriend={() => setShowAddFriend(true)}
+00322:         >
+00323:           {activeTab === 'messages' ? (
+00324:             <MessagesTab onOpenChat={setActiveContactId} onAddFriend={() => setShowAddFriend(true)} />
+00325:           ) : activeTab === 'contacts' ? (
+00326:             <HomeScreen onOpenChat={setActiveContactId} onAddFriend={() => setShowAddFriend(true)} />
+00327:           ) : (
+00328:             <MeTab onChangePassword={() => setShowChangePassword(true)} onProfileSettings={() => setShowProfileSettings(true)} />
+00329:           )}
+00330:         </AppShell>
+00331:       </View>
+00332:       <Modal visible={showAddFriend} transparent animationType="fade" onRequestClose={() => setShowAddFriend(false)}>
+00333:         <KeyboardAvoidingView style={modalStyles.backdrop} behavior={getModalKeyboardAvoidingBehavior()}>
+00334:           <Pressable accessibilityLabel="关闭添加好友面板" style={modalStyles.scrim} onPress={() => setShowAddFriend(false)} />
+00335:           <View testID="modal-frame" style={[styles.modalPhoneFrame, frameSize]}>
+00336:             <View style={modalStyles.sheetWrap}>
+00337:               <View style={[modalStyles.sheetSurface, { maxHeight: Math.floor(frameSize.height * 0.72) }]}>
+00338:                 <View style={modalStyles.handle} />
+00339:                 <View style={modalStyles.header}>
+00340:                   <View style={modalStyles.titleGroup}>
+00341:                     <Text style={modalStyles.title}>添加伙伴</Text>
+00342:                     <Text style={modalStyles.copy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
+00343:                   </View>
+00344:                   <Pressable accessibilityLabel="关闭" style={modalStyles.closeButton} onPress={() => setShowAddFriend(false)}>
+00345:                     <Text style={modalStyles.closeText}>×</Text>
+00346:                   </Pressable>
+00347:                 </View>
+00348:                 <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
+00349:                   <AddFriendPanel onDone={() => setShowAddFriend(false)} />
+00350:                 </ScrollView>
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 8 页 / 共 103 页 =====
+00351:               </View>
+00352:             </View>
+00353:           </View>
+00354:         </KeyboardAvoidingView>
+00355:       </Modal>
+00356:       <NfcInviteLaunchDialog {...nfcInviteLaunch} />
+00357:     </SafeAreaView>
+00358:   );
+00359: }
+00360: 
+00361: function useStatusBarPadding() {
+00362:   return Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 0;
+00363: }
+00364: 
+00365: function getShellCopy(tab: AppTab) {
+00366:   if (tab === 'contacts') {
+00367:     return { title: '通讯录', subtitle: '伙伴图鉴和开聊入口' };
+00368:   }
+00369:   if (tab === 'me') {
+00370:     return { title: '我的', subtitle: '账号、密码和会话设置' };
+00371:   }
+00372:   return { title: '消息', subtitle: '从最近的伙伴开始聊天' };
+00373: }
+00374: 
+00375: function usePhoneFrameSize() {
+00376:   const { width, height } = useWindowDimensions();
+00377:   return useMemo(
+00378:     () => ({
+00379:       width: Math.floor(Math.min(width, layout.phoneMaxWidth)),
+00380:       height: Math.floor(Math.min(height, layout.phoneMaxHeight))
+00381:     }),
+00382:     [height, width]
+00383:   );
+00384: }
+00385: 
+00386: const styles = StyleSheet.create({
+00387:   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#efe7ff' },
+00388:   phoneFrame: {
+00389:     flexShrink: 0,
+00390:     overflow: 'hidden',
+00391:     backgroundColor: '#f9f1ff'
+00392:   },
+00393:   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+00394:   loadingText: { color: colors.ink, fontWeight: '900' },
+00395:   modalPhoneFrame: { justifyContent: 'flex-end', overflow: 'hidden' },
+00396:   sheetScroll: { paddingBottom: spacing.xs }
+00397: });
+00398: 
+00399: // ============================================================
+00400: // File: .\apps\mobile\src\env.d.ts
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 9 页 / 共 103 页 =====
+00401: // ============================================================
+00402: declare const process: {
+00403:   env: Record<string, string | undefined>;
+00404: };
+00405: 
+00406: // ============================================================
+00407: // File: .\apps\mobile\src\features\auth\AuthScreen.tsx
+00408: // ============================================================
+00409: import { useState } from 'react';
+00410: import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+00411: import { ApiError, api } from '../../api/client';
+00412: import { login, registerPhone, registerUsername } from '../../state/appStore';
+00413: import { colors, fonts, radius, shadow, spacing } from '../../ui/theme';
+00414: 
+00415: type AuthMode = 'login' | 'username' | 'phone';
+00416: 
+00417: export function AuthScreen() {
+00418:   const [mode, setMode] = useState<AuthMode>('login');
+00419:   const [identifier, setIdentifier] = useState('alice');
+00420:   const [username, setUsername] = useState('');
+00421:   const [phone, setPhone] = useState('');
+00422:   const [displayName, setDisplayName] = useState('');
+00423:   const [password, setPassword] = useState('password123');
+00424:   const [confirmPassword, setConfirmPassword] = useState('password123');
+00425:   const [code, setCode] = useState('');
+00426:   const [mockCode, setMockCode] = useState<string | null>(null);
+00427:   const [loading, setLoading] = useState(false);
+00428:   const [error, setError] = useState<string | null>(null);
+00429: 
+00430:   const submit = async () => {
+00431:     if (loading) return;
+00432:     setLoading(true);
+00433:     setError(null);
+00434:     try {
+00435:       if (mode === 'login') {
+00436:         await login(identifier, password);
+00437:       } else {
+00438:         assertPasswordMatch(password, confirmPassword);
+00439:         if (mode === 'username') {
+00440:           await registerUsername({ username, password, displayName });
+00441:         } else {
+00442:           await registerPhone({ phone, code, password, displayName });
+00443:         }
+00444:       }
+00445:     } catch (cause) {
+00446:       setError(getErrorMessage(cause));
+00447:     } finally {
+00448:       setLoading(false);
+00449:     }
+00450:   };
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 10 页 / 共 103 页 =====
+00451: 
+00452:   const requestCode = async () => {
+00453:     if (!phone.trim() || loading) return;
+00454:     setLoading(true);
+00455:     setError(null);
+00456:     try {
+00457:       const result = await api.requestMockSms({ phone });
+00458:       setMockCode(result.code);
+00459:       setCode(result.code);
+00460:     } catch (cause) {
+00461:       setError(getErrorMessage(cause));
+00462:     } finally {
+00463:       setLoading(false);
+00464:     }
+00465:   };
+00466: 
+00467:   return (
+00468:     <KeyboardAvoidingView style={styles.root} behavior={getKeyboardAvoidingBehavior()}>
+00469:       <View style={styles.orbA} />
+00470:       <View style={styles.orbB} />
+00471:       <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+00472:         <View style={styles.hero}>
+00473:           <Text style={styles.kicker}>次聊</Text>
+00474:           <Text style={styles.title}>和二次元伙伴，贴卡开聊。</Text>
+00475:           <Text style={styles.copy}>本地账号、NFC 加好友、一对一文字聊天。先登录，再进入你的伙伴频道。</Text>
+00476:         </View>
+00477: 
+00478:         <View style={styles.tabs}>
+00479:           <Tab active={mode === 'login'} label="登录" onPress={() => setMode('login')} />
+00480:           <Tab active={mode === 'username'} label="用户名注册" onPress={() => setMode('username')} />
+00481:           <Tab active={mode === 'phone'} label="手机号注册" onPress={() => setMode('phone')} />
+00482:         </View>
+00483: 
+00484:         <View style={styles.card}>
+00485:           {mode === 'login' ? (
+00486:             <>
+00487:               <Label text="用户名或手机号" />
+00488:               <TextInput value={identifier} onChangeText={setIdentifier} autoCapitalize="none" style={styles.input} />
+00489:             </>
+00490:           ) : null}
+00491: 
+00492:           {mode === 'username' ? (
+00493:             <>
+00494:               <Label text="用户名" />
+00495:               <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" style={styles.input} />
+00496:               <Label text="昵称" />
+00497:               <TextInput value={displayName} onChangeText={setDisplayName} style={styles.input} />
+00498:             </>
+00499:           ) : null}
+00500: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 11 页 / 共 103 页 =====
+00501:           {mode === 'phone' ? (
+00502:             <>
+00503:               <Label text="手机号" />
+00504:               <TextInput value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={styles.input} />
+00505:               <Pressable style={styles.secondaryButton} onPress={requestCode} disabled={loading || !phone.trim()}>
+00506:                 <Text style={styles.secondaryText}>获取本地验证码</Text>
+00507:               </Pressable>
+00508:               {mockCode ? <Text style={styles.mockCode}>本地验证码：{mockCode}</Text> : null}
+00509:               <Label text="验证码" />
+00510:               <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" style={styles.input} />
+00511:               <Label text="昵称" />
+00512:               <TextInput value={displayName} onChangeText={setDisplayName} style={styles.input} />
+00513:             </>
+00514:           ) : null}
+00515: 
+00516:           <Label text="密码" />
+00517:           <TextInput value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+00518:           {mode !== 'login' ? (
+00519:             <>
+00520:               <Label text="确认密码" />
+00521:               <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry style={styles.input} />
+00522:             </>
+00523:           ) : null}
+00524: 
+00525:           {error ? <Text style={styles.error}>{error}</Text> : null}
+00526:           <Pressable style={styles.primaryButton} onPress={submit} disabled={loading}>
+00527:             {loading ? <ActivityIndicator color="white" /> : <Text style={styles.primaryText}>{mode === 'login' ? '进入次聊' : '注册并进入'}</Text>}
+00528:           </Pressable>
+00529:         </View>
+00530:       </ScrollView>
+00531:     </KeyboardAvoidingView>
+00532:   );
+00533: }
+00534: 
+00535: function getKeyboardAvoidingBehavior() {
+00536:   return Platform.OS === 'ios' ? 'padding' : 'height';
+00537: }
+00538: 
+00539: function Tab({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+00540:   return (
+00541:     <Pressable style={[styles.tab, active && styles.activeTab]} onPress={onPress}>
+00542:       <Text style={[styles.tabText, active && styles.activeTabText]}>{label}</Text>
+00543:     </Pressable>
+00544:   );
+00545: }
+00546: 
+00547: function Label({ text }: { text: string }) {
+00548:   return <Text style={styles.label}>{text}</Text>;
+00549: }
+00550: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 12 页 / 共 103 页 =====
+00551: function assertPasswordMatch(password: string, confirmPassword: string) {
+00552:   if (password !== confirmPassword) {
+00553:     throw new Error('两次输入的密码不一致。');
+00554:   }
+00555: }
+00556: 
+00557: function getErrorMessage(cause: unknown) {
+00558:   if (cause instanceof ApiError) return cause.message;
+00559:   if (cause instanceof Error) return cause.message;
+00560:   return '操作失败，请检查后端是否已启动。';
+00561: }
+00562: 
+00563: const styles = StyleSheet.create({
+00564:   root: { flex: 1, minWidth: 0, overflow: 'hidden', backgroundColor: '#f9f1ff' },
+00565:   scrollContent: { flexGrow: 1, gap: spacing.md, padding: spacing.lg, paddingBottom: spacing.xl },
+00566:   orbA: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: '#c7f3ff', top: -78, right: -62, opacity: 0.92 },
+00567:   orbB: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: '#ffd2df', bottom: -54, left: -58, opacity: 0.86 },
+00568:   hero: { borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.ink, overflow: 'hidden', ...shadow },
+00569:   kicker: { color: colors.lemon, fontWeight: '900', letterSpacing: 1.4 },
+00570:   title: { marginTop: spacing.sm, color: colors.paper, fontFamily: fonts.display, fontSize: 30, lineHeight: 36, fontWeight: '900' },
+00571:   copy: { marginTop: spacing.sm, color: '#e8ddff', fontSize: 15, lineHeight: 22, fontWeight: '700' },
+00572:   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+00573:   tab: { borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: 'rgba(255,255,255,0.9)' },
+00574:   activeTab: { backgroundColor: colors.coral },
+00575:   tabText: { color: colors.ink, fontWeight: '900' },
+00576:   activeTabText: { color: 'white' },
+00577:   card: { gap: spacing.sm, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: 'rgba(255,255,255,0.94)', overflow: 'hidden', ...shadow },
+00578:   label: { color: colors.muted, fontWeight: '900' },
+00579:   input: { minWidth: 0, borderRadius: radius.md, backgroundColor: '#f8f1ff', padding: spacing.md, borderWidth: 2, borderColor: colors.line, color: colors.ink, fontWeight: '800' },
+00580:   primaryButton: { minHeight: 48, borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+00581:   primaryText: { color: colors.lemon, fontWeight: '900' },
+00582:   secondaryButton: { borderRadius: radius.md, padding: spacing.md, backgroundColor: colors.coral, alignItems: 'center' },
+00583:   secondaryText: { color: 'white', fontWeight: '900' },
+00584:   mockCode: { color: colors.lavender, fontWeight: '900' },
+00585:   error: { color: colors.danger, fontWeight: '800' }
+00586: });
+00587: 
+00588: // ============================================================
+00589: // File: .\apps\mobile\src\features\auth\ChangePasswordScreen.tsx
+00590: // ============================================================
+00591: import { useState } from 'react';
+00592: import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+00593: import { ApiError, api } from '../../api/client';
+00594: 
+00595: type ChangePasswordScreenProps = {
+00596:   onBack: () => void;
+00597: };
+00598: 
+00599: export function ChangePasswordScreen({ onBack }: ChangePasswordScreenProps) {
+00600:   const [oldPassword, setOldPassword] = useState('');
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 13 页 / 共 103 页 =====
+00601:   const [newPassword, setNewPassword] = useState('');
+00602:   const [confirmPassword, setConfirmPassword] = useState('');
+00603:   const [message, setMessage] = useState<string | null>(null);
+00604:   const [error, setError] = useState<string | null>(null);
+00605:   const [saving, setSaving] = useState(false);
+00606: 
+00607:   const submit = async () => {
+00608:     if (saving) return;
+00609:     setSaving(true);
+00610:     setError(null);
+00611:     setMessage(null);
+00612:     try {
+00613:       if (newPassword !== confirmPassword) {
+00614:         throw new Error('两次输入的新密码不一致。');
+00615:       }
+00616:       await api.changePassword(oldPassword, newPassword);
+00617:       setOldPassword('');
+00618:       setNewPassword('');
+00619:       setConfirmPassword('');
+00620:       setMessage('密码已修改，下次登录请使用新密码。');
+00621:     } catch (cause) {
+00622:       setError(cause instanceof ApiError || cause instanceof Error ? cause.message : '修改密码失败。');
+00623:     } finally {
+00624:       setSaving(false);
+00625:     }
+00626:   };
+00627: 
+00628:   return (
+00629:     <KeyboardAvoidingView style={styles.root} behavior={getKeyboardAvoidingBehavior()}>
+00630:       <View style={styles.header}>
+00631:         <Pressable onPress={onBack} style={styles.backButton}>
+00632:           <Text style={styles.backText}>返回</Text>
+00633:         </Pressable>
+00634:         <Text style={styles.title}>修改密码</Text>
+00635:         <Text style={styles.subtitle}>先确认当前密码，再设置至少 8 位的新密码。</Text>
+00636:       </View>
+00637:       <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+00638:         <View style={styles.card}>
+00639:           <Text style={styles.label}>当前密码</Text>
+00640:           <TextInput value={oldPassword} onChangeText={setOldPassword} secureTextEntry style={styles.input} />
+00641:           <Text style={styles.label}>新密码</Text>
+00642:           <TextInput value={newPassword} onChangeText={setNewPassword} secureTextEntry style={styles.input} />
+00643:           <Text style={styles.label}>确认新密码</Text>
+00644:           <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry style={styles.input} />
+00645:           {message ? <Text style={styles.message}>{message}</Text> : null}
+00646:           {error ? <Text style={styles.error}>{error}</Text> : null}
+00647:           <Pressable style={styles.primaryButton} onPress={submit} disabled={saving}>
+00648:             <Text style={styles.primaryText}>{saving ? '保存中' : '保存新密码'}</Text>
+00649:           </Pressable>
+00650:         </View>
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 14 页 / 共 103 页 =====
+00651:       </ScrollView>
+00652:     </KeyboardAvoidingView>
+00653:   );
+00654: }
+00655: 
+00656: function getKeyboardAvoidingBehavior() {
+00657:   return Platform.OS === 'ios' ? 'padding' : 'height';
+00658: }
+00659: 
+00660: const styles = StyleSheet.create({
+00661:   root: { flex: 1, backgroundColor: '#f7efe1' },
+00662:   header: { padding: 20, paddingTop: 28, backgroundColor: '#2e3559' },
+00663:   backButton: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10, backgroundColor: '#495174' },
+00664:   backText: { color: 'white', fontWeight: '800' },
+00665:   title: { color: 'white', fontSize: 24, fontWeight: '900' },
+00666:   subtitle: { color: '#ffddb7', marginTop: 4 },
+00667:   scrollContent: { flexGrow: 1, paddingBottom: 28 },
+00668:   card: { gap: 10, margin: 18, borderRadius: 24, padding: 18, backgroundColor: '#fff7df' },
+00669:   label: { color: '#6c5a45', fontWeight: '800' },
+00670:   input: { borderRadius: 14, backgroundColor: 'white', padding: 12, borderWidth: 1, borderColor: '#eeddb6' },
+00671:   primaryButton: { borderRadius: 16, padding: 14, backgroundColor: '#2e3559', alignItems: 'center' },
+00672:   primaryText: { color: 'white', fontWeight: '900' },
+00673:   message: { color: '#067647', fontWeight: '800' },
+00674:   error: { color: '#b42318', fontWeight: '800' }
+00675: });
+00676: 
+00677: // ============================================================
+00678: // File: .\apps\mobile\src\features\chat\ChatScreen.tsx
+00679: // ============================================================
+00680: import { useEffect, useMemo, useRef, useState } from 'react';
+00681: import { FlatList, Keyboard, KeyboardAvoidingView, LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+00682: import { api } from '../../api/client';
+00683: import { ChatMessage, UserProfile } from '../../api/types';
+00684: import { useAppStore } from '../../state/appStore';
+00685: import { Avatar } from '../../ui/Avatar';
+00686: import { colors, radius, shadow, spacing } from '../../ui/theme';
+00687: import { formatBeijingTime } from '../../ui/time';
+00688: import { sendSocketMessage } from './socket';
+00689: 
+00690: type ChatScreenProps = {
+00691:   contactId: string;
+00692:   onBack: () => void;
+00693: };
+00694: 
+00695: const EMPTY_MESSAGES: ChatMessage[] = [];
+00696: 
+00697: export function ChatScreen({ contactId, onBack }: ChatScreenProps) {
+00698:   const currentUser = useAppStore((state) => state.currentUser);
+00699:   const contacts = useAppStore((state) => state.contacts);
+00700:   const messages = useAppStore((state) => state.messagesByContact[contactId] ?? EMPTY_MESSAGES);
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 15 页 / 共 103 页 =====
+00701:   const setMessages = useAppStore((state) => state.setMessages);
+00702:   const addMessage = useAppStore((state) => state.addMessage);
+00703:   const listRef = useRef<FlatList<ChatMessage>>(null);
+00704:   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+00705:   const listHeightRef = useRef(0);
+00706:   const contentHeightRef = useRef(0);
+00707:   const [draft, setDraft] = useState('');
+00708:   const [error, setError] = useState<string | null>(null);
+00709:   const [sending, setSending] = useState(false);
+00710: 
+00711:   const contact = useMemo<UserProfile | undefined>(() => contacts.find((item) => item.id === contactId), [contactId, contacts]);
+00712:   const latestMessageId = messages[messages.length - 1]?.id;
+00713: 
+00714:   useEffect(() => {
+00715:     if (!currentUser || !contactId) return;
+00716:     api
+00717:       .messages(contactId)
+00718:       .then((result) => setMessages(contactId, result.messages))
+00719:       .catch((cause) => setError(cause instanceof Error ? cause.message : '无法加载聊天记录。'));
+00720:   }, [contactId, currentUser, setMessages]);
+00721: 
+00722:   useEffect(() => {
+00723:     if (!latestMessageId) return;
+00724:     scrollToLatest(true, 0);
+00725:     return () => clearScrollTimer();
+00726:   }, [latestMessageId]);
+00727: 
+00728:   useEffect(() => {
+00729:     const eventName = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+00730:     const subscription = Keyboard.addListener(eventName, () => scrollToLatest(true, 180));
+00731:     return () => {
+00732:       subscription.remove();
+00733:       clearScrollTimer();
+00734:     };
+00735:   }, []);
+00736: 
+00737:   const clearScrollTimer = () => {
+00738:     if (!scrollTimerRef.current) return;
+00739:     clearTimeout(scrollTimerRef.current);
+00740:     scrollTimerRef.current = null;
+00741:   };
+00742: 
+00743:   const scrollToLatest = (animated = true, delay = 40) => {
+00744:     clearScrollTimer();
+00745:     scrollTimerRef.current = setTimeout(() => {
+00746:       const offset = Math.max(contentHeightRef.current - listHeightRef.current, 0);
+00747:       listRef.current?.scrollToOffset({ offset, animated });
+00748:       requestAnimationFrame(() => {
+00749:         const nextOffset = Math.max(contentHeightRef.current - listHeightRef.current, 0);
+00750:         listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 16 页 / 共 103 页 =====
+00751:       });
+00752:       scrollTimerRef.current = null;
+00753:     }, delay);
+00754:   };
+00755: 
+00756:   const handleListLayout = (event: LayoutChangeEvent) => {
+00757:     listHeightRef.current = event.nativeEvent.layout.height;
+00758:     scrollToLatest(false, 80);
+00759:   };
+00760: 
+00761:   const handleContentSizeChange = (_width: number, height: number) => {
+00762:     contentHeightRef.current = height;
+00763:     scrollToLatest(false, 0);
+00764:     setTimeout(() => scrollToLatest(false, 0), 120);
+00765:   };
+00766: 
+00767:   const send = async () => {
+00768:     if (!currentUser || !contactId || !draft.trim() || sending) return;
+00769:     const text = draft.trim();
+00770:     setDraft('');
+00771:     setError(null);
+00772:     setSending(true);
+00773:     try {
+00774:       let message: ChatMessage;
+00775:       try {
+00776:         message = await sendSocketMessage({ recipientId: contactId, text });
+00777:       } catch {
+00778:         const result = await api.sendMessage(contactId, text);
+00779:         message = result.message;
+00780:       }
+00781:       addMessage(message, currentUser.id);
+00782:     } catch (cause) {
+00783:       setDraft(text);
+00784:       setError(cause instanceof Error ? cause.message : '消息发送失败，请检查后端或网络。');
+00785:     } finally {
+00786:       setSending(false);
+00787:     }
+00788:   };
+00789: 
+00790:   return (
+00791:     <KeyboardAvoidingView style={styles.root} behavior={Platform.select({ ios: 'padding', android: 'height' })}>
+00792:       <View style={styles.backdropA} />
+00793:       <View style={styles.header}>
+00794:         <Pressable onPress={onBack} style={styles.backButton}>
+00795:           <View style={styles.backChevron} />
+00796:         </Pressable>
+00797:         <Avatar label={contact?.avatar || contact?.displayName || contactId} imageUrl={contact?.avatarUrl} size={48} accent="lavender" />
+00798:         <View style={styles.headerText}>
+00799:           <Text style={styles.title}>{contact?.displayName ?? contactId}</Text>
+00800:           <Text style={styles.subtitle}>一对一文字聊天</Text>
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 17 页 / 共 103 页 =====
+00801:         </View>
+00802:       </View>
+00803:       {error ? <Text style={styles.error}>{error}</Text> : null}
+00804:       <FlatList
+00805:         ref={listRef}
+00806:         style={styles.list}
+00807:         contentContainerStyle={styles.listContent}
+00808:         data={messages}
+00809:         keyExtractor={(item) => item.id}
+00810:         keyboardShouldPersistTaps="handled"
+00811:         onContentSizeChange={handleContentSizeChange}
+00812:         onLayout={handleListLayout}
+00813:         ListEmptyComponent={<Text style={styles.empty}>还没有聊天记录，发一句打个招呼吧。</Text>}
+00814:         renderItem={({ item }) => {
+00815:           const mine = item.senderId === currentUser?.id;
+00816:           return (
+00817:             <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+00818:               <Text style={mine ? styles.mineText : styles.theirsText}>{item.text}</Text>
+00819:               <Text style={mine ? styles.mineTime : styles.theirsTime}>{formatMessageTime(item.createdAt)}</Text>
+00820:             </View>
+00821:           );
+00822:         }}
+00823:       />
+00824:       <View style={styles.composer}>
+00825:         <TextInput
+00826:           value={draft}
+00827:           onChangeText={setDraft}
+00828:           placeholder="输入消息"
+00829:           placeholderTextColor="#9a8caf"
+00830:           style={styles.input}
+00831:           editable={!sending}
+00832:           returnKeyType="send"
+00833:           onSubmitEditing={send}
+00834:         />
+00835:         <Pressable style={[styles.sendButton, (!draft.trim() || sending) && styles.disabledButton]} onPress={send} disabled={!draft.trim() || sending}>
+00836:           <Text style={styles.sendText}>{sending ? '...' : '发送'}</Text>
+00837:         </Pressable>
+00838:       </View>
+00839:     </KeyboardAvoidingView>
+00840:   );
+00841: }
+00842: 
+00843: function formatMessageTime(value: string) {
+00844:   return formatBeijingTime(value);
+00845: }
+00846: 
+00847: const styles = StyleSheet.create({
+00848:   root: { flex: 1, minWidth: 0, overflow: 'hidden', backgroundColor: '#f9f1ff' },
+00849:   backdropA: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: '#c7f3ff', top: -82, right: -60 },
+00850:   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.md, overflow: 'hidden' },
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 18 页 / 共 103 页 =====
+00851:   backButton: { flexShrink: 0, width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink, ...shadow },
+00852:   backChevron: {
+00853:     width: 13,
+00854:     height: 13,
+00855:     borderLeftWidth: 4,
+00856:     borderBottomWidth: 4,
+00857:     borderColor: colors.lemon,
+00858:     transform: [{ rotate: '45deg' }, { translateX: 2 }],
+00859:   },
+00860:   headerText: { flex: 1, minWidth: 0 },
+00861:   title: { color: colors.ink, fontSize: 22, fontWeight: '900' },
+00862:   subtitle: { color: colors.muted, marginTop: 2, fontWeight: '700' },
+00863:   error: { color: colors.danger, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, fontWeight: '800' },
+00864:   list: { flex: 1 },
+00865:   listContent: { flexGrow: 1, gap: spacing.sm, padding: spacing.md, paddingBottom: spacing.lg },
+00866:   empty: { marginTop: spacing.xl, textAlign: 'center', color: colors.muted, fontWeight: '800' },
+00867:   bubble: { maxWidth: '78%', borderRadius: radius.lg, padding: spacing.md, ...shadow },
+00868:   mine: { alignSelf: 'flex-end', backgroundColor: colors.coral },
+00869:   theirs: { alignSelf: 'flex-start', backgroundColor: colors.panel },
+00870:   mineText: { color: 'white', fontSize: 16, fontWeight: '700' },
+00871:   theirsText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
+00872:   mineTime: { color: '#ffeaf0', fontSize: 11, marginTop: 4, fontWeight: '800' },
+00873:   theirsTime: { color: colors.muted, fontSize: 11, marginTop: 4, fontWeight: '800' },
+00874:   composer: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, paddingBottom: spacing.md, backgroundColor: 'rgba(255,255,255,0.82)', borderTopWidth: 1, borderTopColor: colors.line, overflow: 'hidden' },
+00875:   input: { flex: 1, minWidth: 0, borderRadius: radius.lg, backgroundColor: 'white', paddingHorizontal: spacing.md, minHeight: 46, color: colors.ink, fontWeight: '800' },
+00876:   sendButton: { flexShrink: 0, borderRadius: radius.lg, backgroundColor: colors.ink, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center' },
+00877:   disabledButton: { opacity: 0.45 },
+00878:   sendText: { color: colors.lemon, fontWeight: '900' }
+00879: });
+00880: 
+00881: // ============================================================
+00882: // File: .\apps\mobile\src\features\chat\socket.ts
+00883: // ============================================================
+00884: import { useEffect } from 'react';
+00885: import { API_URL } from '../../api/config';
+00886: import { ChatMessage, UserProfile } from '../../api/types';
+00887: import { useAppStore } from '../../state/appStore';
+00888: 
+00889: type PendingSend = {
+00890:   resolve: (message: ChatMessage) => void;
+00891:   reject: (error: Error) => void;
+00892:   timeout: ReturnType<typeof setTimeout>;
+00893: };
+00894: 
+00895: type SocketEnvelope = {
+00896:   type: string;
+00897:   requestId?: string;
+00898:   payload?: any;
+00899: };
+00900: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 19 页 / 共 103 页 =====
+00901: let socket: WebSocket | null = null;
+00902: const pending = new Map<string, PendingSend>();
+00903: 
+00904: export function useChatSocket() {
+00905:   const currentUser = useAppStore((state) => state.currentUser);
+00906:   const token = useAppStore((state) => state.token);
+00907:   const addMessage = useAppStore((state) => state.addMessage);
+00908:   const setContacts = useAppStore((state) => state.setContacts);
+00909: 
+00910:   useEffect(() => {
+00911:     if (!currentUser || !token) return;
+00912: 
+00913:     socket?.close();
+00914:     socket = new WebSocket(`${toWebSocketUrl(API_URL)}/ws/chat?token=${encodeURIComponent(token)}`);
+00915:     socket.onmessage = (event) => {
+00916:       const envelope = JSON.parse(event.data) as SocketEnvelope;
+00917:       if (envelope.type === 'message:new') {
+00918:         addMessage(envelope.payload as ChatMessage, currentUser.id);
+00919:       }
+00920:       if (envelope.type === 'contacts:updated') {
+00921:         setContacts((envelope.payload as { contacts: UserProfile[] }).contacts);
+00922:       }
+00923:       if (envelope.type === 'ack' && envelope.requestId) {
+00924:         const item = pending.get(envelope.requestId);
+00925:         if (!item) return;
+00926:         pending.delete(envelope.requestId);
+00927:         clearTimeout(item.timeout);
+00928:         if (envelope.payload?.ok && envelope.payload.message) {
+00929:           item.resolve(envelope.payload.message as ChatMessage);
+00930:         } else {
+00931:           item.reject(new Error(envelope.payload?.error ?? '消息发送失败。'));
+00932:         }
+00933:       }
+00934:     };
+00935:     socket.onclose = () => {
+00936:       pending.forEach((item) => {
+00937:         clearTimeout(item.timeout);
+00938:         item.reject(new Error('聊天连接已断开。'));
+00939:       });
+00940:       pending.clear();
+00941:     };
+00942: 
+00943:     return () => {
+00944:       socket?.close();
+00945:       socket = null;
+00946:     };
+00947:   }, [addMessage, currentUser, setContacts, token]);
+00948: }
+00949: 
+00950: export function sendSocketMessage(payload: { recipientId: string; text: string }) {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 20 页 / 共 103 页 =====
+00951:   return new Promise<ChatMessage>((resolve, reject) => {
+00952:     if (!socket || socket.readyState !== WebSocket.OPEN) {
+00953:       reject(new Error('聊天连接尚未建立。'));
+00954:       return;
+00955:     }
+00956: 
+00957:     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+00958:     const timeout = setTimeout(() => {
+00959:       pending.delete(requestId);
+00960:       reject(new Error('消息发送超时。'));
+00961:     }, 5000);
+00962:     pending.set(requestId, { resolve, reject, timeout });
+00963:     socket.send(JSON.stringify({ type: 'message:send', requestId, payload }));
+00964:   });
+00965: }
+00966: 
+00967: function toWebSocketUrl(apiUrl: string) {
+00968:   return apiUrl.replace(/^http/i, 'ws');
+00969: }
+00970: 
+00971: // ============================================================
+00972: // File: .\apps\mobile\src\features\contacts\HomeScreen.tsx
+00973: // ============================================================
+00974: import { useEffect, useState } from 'react';
+00975: import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+00976: import { api } from '../../api/client';
+00977: import { useAppStore } from '../../state/appStore';
+00978: import { Avatar } from '../../ui/Avatar';
+00979: import { colors, radius, shadow, spacing } from '../../ui/theme';
+00980: 
+00981: type HomeScreenProps = {
+00982:   onOpenChat: (contactId: string) => void;
+00983:   onAddFriend: () => void;
+00984: };
+00985: 
+00986: export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
+00987:   const contacts = useAppStore((state) => state.contacts);
+00988:   const incomingFriendRequests = useAppStore((state) => state.incomingFriendRequests);
+00989:   const setContacts = useAppStore((state) => state.setContacts);
+00990:   const setIncomingFriendRequests = useAppStore((state) => state.setIncomingFriendRequests);
+00991:   const removeIncomingFriendRequest = useAppStore((state) => state.removeIncomingFriendRequest);
+00992:   const [loading, setLoading] = useState(false);
+00993:   const [error, setError] = useState<string | null>(null);
+00994: 
+00995:   const loadData = () => {
+00996:     setLoading(true);
+00997:     setError(null);
+00998:     Promise.all([api.contacts(), api.incomingFriendRequests()])
+00999:       .then(([contactsResult, requestsResult]) => {
+01000:         setContacts(contactsResult.contacts);
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 21 页 / 共 103 页 =====
+01001:         setIncomingFriendRequests(requestsResult.requests.filter((request) => request.status === 'PENDING'));
+01002:       })
+01003:       .catch((cause) => setError(cause instanceof Error ? cause.message : '无法加载通讯录。'))
+01004:       .finally(() => setLoading(false));
+01005:   };
+01006: 
+01007:   useEffect(() => {
+01008:     loadData();
+01009:   }, [setContacts, setIncomingFriendRequests]);
+01010: 
+01011:   const acceptRequest = async (requestId: number) => {
+01012:     if (loading) return;
+01013:     setLoading(true);
+01014:     try {
+01015:       const result = await api.acceptFriendRequest(requestId);
+01016:       setContacts(result.contacts);
+01017:       removeIncomingFriendRequest(requestId);
+01018:       Alert.alert('已同意', '你们现在可以开始聊天了。');
+01019:     } catch (cause) {
+01020:       Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法同意好友申请。');
+01021:     } finally {
+01022:       setLoading(false);
+01023:     }
+01024:   };
+01025: 
+01026:   const rejectRequest = async (requestId: number) => {
+01027:     if (loading) return;
+01028:     setLoading(true);
+01029:     try {
+01030:       await api.rejectFriendRequest(requestId);
+01031:       removeIncomingFriendRequest(requestId);
+01032:       Alert.alert('已拒绝', '好友申请已处理。');
+01033:     } catch (cause) {
+01034:       Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法拒绝好友申请。');
+01035:     } finally {
+01036:       setLoading(false);
+01037:     }
+01038:   };
+01039: 
+01040:   return (
+01041:     <View style={styles.root}>
+01042:       <View style={styles.summaryCard}>
+01043:         <Text style={styles.summaryKicker}>伙伴图鉴</Text>
+01044:         <Text style={styles.summaryTitle}>{contacts.length} 位伙伴已连接</Text>
+01045:         <Text style={styles.summaryCopy}>NFC 卡片和手动邀请都会把伙伴加入这里。点头像卡片就能开聊。</Text>
+01046:       </View>
+01047: 
+01048:       {loading ? <ActivityIndicator /> : null}
+01049:       {error ? <Text style={styles.error}>{error}</Text> : null}
+01050:       {incomingFriendRequests.length > 0 ? (
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 22 页 / 共 103 页 =====
+01051:         <View style={styles.requestPanel}>
+01052:           <View style={styles.requestHeader}>
+01053:             <Text style={styles.requestTitle}>好友申请</Text>
+01054:             <Pressable onPress={loadData} disabled={loading}>
+01055:               <Text style={styles.refreshText}>刷新</Text>
+01056:             </Pressable>
+01057:           </View>
+01058:           {incomingFriendRequests.map((request, index) => (
+01059:             <View key={request.id} style={styles.requestCard}>
+01060:               <Avatar label={request.requester.avatar || request.requester.displayName} imageUrl={request.requester.avatarUrl} size={46} accent={index % 2 === 0 ? 'mint' : 'lavender'} />
+01061:               <View style={styles.requestBody}>
+01062:                 <Text style={styles.requestName}>{request.requester.displayName}</Text>
+01063:                 <Text style={styles.requestHint}>{request.requester.username ? `@${request.requester.username}` : request.requester.phone ?? request.requester.id}</Text>
+01064:               </View>
+01065:               <View style={styles.requestActions}>
+01066:                 <Pressable style={[styles.requestButton, styles.acceptButton]} onPress={() => acceptRequest(request.id)} disabled={loading}>
+01067:                   <Text style={styles.acceptText}>同意</Text>
+01068:                 </Pressable>
+01069:                 <Pressable style={[styles.requestButton, styles.rejectButton]} onPress={() => rejectRequest(request.id)} disabled={loading}>
+01070:                   <Text style={styles.rejectText}>拒绝</Text>
+01071:                 </Pressable>
+01072:               </View>
+01073:             </View>
+01074:           ))}
+01075:         </View>
+01076:       ) : null}
+01077: 
+01078:       <FlatList
+01079:         data={contacts}
+01080:         keyExtractor={(item) => item.id}
+01081:         contentContainerStyle={styles.list}
+01082:         ListEmptyComponent={
+01083:           <Pressable style={styles.emptyCard} onPress={onAddFriend}>
+01084:             <Text style={styles.emptyTitle}>通讯录还是空的</Text>
+01085:             <Text style={styles.emptyCopy}>点右上角 +，扫描 NFC 卡片，或输入 username、ID、手机号发送好友申请。</Text>
+01086:           </Pressable>
+01087:         }
+01088:         renderItem={({ item, index }) => (
+01089:           <Pressable style={styles.contactCard} onPress={() => onOpenChat(item.id)}>
+01090:             <Avatar label={item.avatar || item.displayName} imageUrl={item.avatarUrl} size={54} accent={index % 2 === 0 ? 'mint' : 'lavender'} />
+01091:             <View style={styles.contactBody}>
+01092:               <Text style={styles.contactName}>{item.displayName}</Text>
+01093:               <Text style={styles.contactHint}>{item.username ? `@${item.username}` : item.phone ?? item.id}</Text>
+01094:             </View>
+01095:             <Text style={styles.chatPill}>聊天</Text>
+01096:           </Pressable>
+01097:         )}
+01098:       />
+01099:     </View>
+01100:   );
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 23 页 / 共 103 页 =====
+01101: }
+01102: 
+01103: const styles = StyleSheet.create({
+01104:   root: { flex: 1 },
+01105:   summaryCard: { borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md, backgroundColor: '#fff1f7', borderWidth: 2, borderColor: '#ffd4e4', ...shadow },
+01106:   summaryKicker: { color: colors.coral, fontWeight: '900', letterSpacing: 1 },
+01107:   summaryTitle: { color: colors.ink, fontSize: 23, fontWeight: '900', marginTop: 4 },
+01108:   summaryCopy: { color: colors.muted, lineHeight: 20, marginTop: spacing.xs, fontWeight: '700' },
+01109:   list: { paddingBottom: spacing.xl },
+01110:   error: { color: colors.danger, fontWeight: '800', marginBottom: spacing.sm },
+01111:   requestPanel: { gap: spacing.sm, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.md, backgroundColor: '#f4fffa', borderWidth: 2, borderColor: '#b8f0db', ...shadow },
+01112:   requestHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+01113:   requestTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+01114:   refreshText: { color: colors.coral, fontWeight: '900' },
+01115:   requestCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.lg, padding: spacing.sm, backgroundColor: 'white' },
+01116:   requestBody: { flex: 1, minWidth: 0 },
+01117:   requestName: { color: colors.ink, fontWeight: '900' },
+01118:   requestHint: { color: colors.muted, marginTop: 2, fontWeight: '700' },
+01119:   requestActions: { flexDirection: 'row', flexShrink: 0, gap: spacing.xs },
+01120:   requestButton: { minHeight: 34, borderRadius: radius.md, paddingHorizontal: spacing.sm, alignItems: 'center', justifyContent: 'center' },
+01121:   acceptButton: { backgroundColor: colors.ink },
+01122:   rejectButton: { backgroundColor: '#f3e8ff' },
+01123:   acceptText: { color: colors.paper, fontWeight: '900' },
+01124:   rejectText: { color: colors.ink, fontWeight: '900' },
+01125:   emptyCard: { borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.line, ...shadow },
+01126:   emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: '900' },
+01127:   emptyCopy: { color: colors.muted, marginTop: spacing.xs, lineHeight: 20, fontWeight: '700' },
+01128:   contactCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm, backgroundColor: 'rgba(255,255,255,0.94)', overflow: 'hidden', ...shadow },
+01129:   contactBody: { flex: 1, minWidth: 0 },
+01130:   contactName: { color: colors.ink, fontSize: 16, fontWeight: '900' },
+01131:   contactHint: { color: colors.muted, marginTop: 3, fontWeight: '700' },
+01132:   chatPill: { flexShrink: 0, overflow: 'hidden', borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 6, backgroundColor: colors.lemon, color: colors.ink, fontWeight: '900' }
+01133: });
+01134: 
+01135: // ============================================================
+01136: // File: .\apps\mobile\src\features\messages\MessagesTab.tsx
+01137: // ============================================================
+01138: import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+01139: import { UserProfile } from '../../api/types';
+01140: import { useAppStore } from '../../state/appStore';
+01141: import { Avatar } from '../../ui/Avatar';
+01142: import { colors, fonts, radius, shadow, spacing } from '../../ui/theme';
+01143: import { formatBeijingTime } from '../../ui/time';
+01144: 
+01145: type MessagesTabProps = {
+01146:   onOpenChat: (contactId: string) => void;
+01147:   onAddFriend: () => void;
+01148: };
+01149: 
+01150: export function MessagesTab({ onOpenChat, onAddFriend }: MessagesTabProps) {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 24 页 / 共 103 页 =====
+01151:   const contacts = useAppStore((state) => state.contacts);
+01152:   const messagesByContact = useAppStore((state) => state.messagesByContact);
+01153: 
+01154:   const rows = contacts.map((contact) => {
+01155:     const messages = messagesByContact[contact.id] ?? [];
+01156:     const last = messages[messages.length - 1];
+01157:     return { contact, lastText: last?.text ?? '贴贴卡片后，从这里开始聊天。', time: last?.createdAt };
+01158:   });
+01159: 
+01160:   return (
+01161:     <View style={styles.root}>
+01162:       <View style={styles.heroCard}>
+01163:         <View style={styles.sparkle}>
+01164:           <Text style={styles.sparkleText}>NFC</Text>
+01165:         </View>
+01166:         <Text style={styles.heroTitle}>今日也要和伙伴连线</Text>
+01167:         <Text style={styles.heroCopy}>消息会在这里排队出现。现在先从通讯录伙伴开始聊天，NFC 加好友在右上角。</Text>
+01168:       </View>
+01169:       <FlatList
+01170:         data={rows}
+01171:         keyExtractor={(item) => item.contact.id}
+01172:         contentContainerStyle={styles.list}
+01173:         ListEmptyComponent={
+01174:           <Pressable style={styles.emptyCard} onPress={onAddFriend}>
+01175:             <Text style={styles.emptyTitle}>还没有聊天伙伴</Text>
+01176:             <Text style={styles.emptyCopy}>点右上角 +，用 NFC 卡片或手动邀请添加第一位伙伴。</Text>
+01177:           </Pressable>
+01178:         }
+01179:         renderItem={({ item, index }) => (
+01180:           <MessageRow item={item.contact} lastText={item.lastText} time={item.time} index={index} onPress={() => onOpenChat(item.contact.id)} />
+01181:         )}
+01182:       />
+01183:     </View>
+01184:   );
+01185: }
+01186: 
+01187: function MessageRow({
+01188:   item,
+01189:   lastText,
+01190:   time,
+01191:   index,
+01192:   onPress
+01193: }: {
+01194:   item: UserProfile;
+01195:   lastText: string;
+01196:   time?: string;
+01197:   index: number;
+01198:   onPress: () => void;
+01199: }) {
+01200:   const accent = index % 3 === 0 ? 'coral' : index % 3 === 1 ? 'sky' : 'lavender';
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 25 页 / 共 103 页 =====
+01201:   return (
+01202:     <Pressable style={styles.row} onPress={onPress}>
+01203:       <Avatar label={item.avatar || item.displayName} imageUrl={item.avatarUrl} accent={accent} size={56} />
+01204:       <View style={styles.rowBody}>
+01205:         <View style={styles.rowTop}>
+01206:           <Text style={styles.name}>{item.displayName}</Text>
+01207:           <Text style={styles.time}>{time ? formatShortTime(time) : '刚刚'}</Text>
+01208:         </View>
+01209:         <Text numberOfLines={1} style={styles.preview}>{lastText}</Text>
+01210:       </View>
+01211:     </Pressable>
+01212:   );
+01213: }
+01214: 
+01215: function formatShortTime(value: string) {
+01216:   return formatBeijingTime(value);
+01217: }
+01218: 
+01219: const styles = StyleSheet.create({
+01220:   root: { flex: 1 },
+01221:   heroCard: { marginBottom: spacing.md, borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.ink, overflow: 'hidden', ...shadow },
+01222:   sparkle: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 4, backgroundColor: colors.lemon },
+01223:   sparkleText: { color: colors.ink, fontWeight: '900' },
+01224:   heroTitle: { color: colors.paper, fontFamily: fonts.display, fontSize: 24, fontWeight: '900', marginTop: spacing.md },
+01225:   heroCopy: { color: '#e8ddff', lineHeight: 20, marginTop: spacing.xs, fontWeight: '700' },
+01226:   list: { paddingBottom: spacing.xl },
+01227:   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm, backgroundColor: 'rgba(255,255,255,0.92)', overflow: 'hidden', ...shadow },
+01228:   rowBody: { flex: 1, minWidth: 0 },
+01229:   rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+01230:   name: { flex: 1, minWidth: 0, color: colors.ink, fontSize: 16, fontWeight: '900' },
+01231:   time: { flexShrink: 0, color: colors.muted, fontSize: 12, fontWeight: '700' },
+01232:   preview: { color: colors.muted, marginTop: 4, fontWeight: '700' },
+01233:   emptyCard: { borderRadius: radius.xl, padding: spacing.lg, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.line, ...shadow },
+01234:   emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: '900' },
+01235:   emptyCopy: { color: colors.muted, marginTop: spacing.xs, lineHeight: 20, fontWeight: '700' }
+01236: });
+01237: 
+01238: // ============================================================
+01239: // File: .\apps\mobile\src\features\nfc\AddFriendPanel.tsx
+01240: // ============================================================
+01241: import { useCallback, useEffect, useRef, useState } from 'react';
+01242: import {
+01243:   ActivityIndicator,
+01244:   Alert,
+01245:   KeyboardAvoidingView,
+01246:   Modal,
+01247:   Platform,
+01248:   Pressable,
+01249:   StyleSheet,
+01250:   Text,
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 26 页 / 共 103 页 =====
+01251:   TextInput,
+01252:   View
+01253: } from 'react-native';
+01254: import { api } from '../../api/client';
+01255: import { useAppStore } from '../../state/appStore';
+01256: import { colors, radius, spacing } from '../../ui/theme';
+01257: import { getModalKeyboardAvoidingBehavior, modalStyles } from '../../ui/modal';
+01258: import { parseInvitePayload } from './invite';
+01259: 
+01260: type NfcModule = typeof import('./nfcService');
+01261: 
+01262: type AddFriendPanelProps = {
+01263:   onDone?: () => void;
+01264: };
+01265: 
+01266: type ScanResultState =
+01267:   | {
+01268:       kind: 'success';
+01269:       title: string;
+01270:       message: string;
+01271:     }
+01272:   | {
+01273:       kind: 'failure';
+01274:       title: string;
+01275:       message: string;
+01276:     };
+01277: 
+01278: type NfcPanelState =
+01279:   | {
+01280:       kind: 'idle';
+01281:     }
+01282:   | {
+01283:       kind: 'unsupported';
+01284:       message: string;
+01285:     };
+01286: 
+01287: export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
+01288:   const currentUser = useAppStore((state) => state.currentUser);
+01289:   const [manualPayload, setManualPayload] = useState('');
+01290:   const [busy, setBusy] = useState(false);
+01291:   const [scanning, setScanning] = useState(false);
+01292:   const [scanPanelVisible, setScanPanelVisible] = useState(false);
+01293:   const [scanTrigger, setScanTrigger] = useState(0);
+01294:   const [nfcPanelState, setNfcPanelState] = useState<NfcPanelState>({ kind: 'idle' });
+01295:   const [scanResult, setScanResult] = useState<ScanResultState | null>(null);
+01296:   const [searchedUser, setSearchedUser] = useState<Awaited<ReturnType<typeof api.searchFriend>>['user'] | null>(null);
+01297:   const scanTokenRef = useRef(0);
+01298: 
+01299:   const closeScanResult = () => {
+01300:     setScanResult(null);
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 27 页 / 共 103 页 =====
+01301:   };
+01302: 
+01303:   const beginNfcScan = useCallback(async () => {
+01304:     if (!currentUser || !scanPanelVisible || busy || scanning || scanResult) return;
+01305: 
+01306:     const scanToken = ++scanTokenRef.current;
+01307:     setScanning(true);
+01308:     let rawPayload = '';
+01309: 
+01310:     try {
+01311:       if (Platform.OS === 'web') {
+01312:         if (scanTokenRef.current !== scanToken) return;
+01313:         setNfcPanelState({ kind: 'unsupported', message: '当前设备不支持 NFC 功能。' });
+01314:         return;
+01315:       }
+01316: 
+01317:       const nfc: NfcModule = await import('./nfcService');
+01318:       const supported = await nfc.isNfcSupported();
+01319:       if (scanTokenRef.current !== scanToken) return;
+01320:       if (!supported) {
+01321:         setNfcPanelState({ kind: 'unsupported', message: '当前设备不支持 NFC 功能。' });
+01322:         return;
+01323:       }
+01324: 
+01325:       rawPayload = await nfc.readNfcInvitePayload();
+01326:       if (scanTokenRef.current !== scanToken) return;
+01327: 
+01328:       setManualPayload(rawPayload);
+01329: 
+01330:       let invite: ReturnType<typeof parseInvitePayload>;
+01331:       try {
+01332:         invite = parseInvitePayload(rawPayload);
+01333:       } catch (error) {
+01334:         const message = getErrorMessage(error);
+01335:         void recordNfcReadEvent({
+01336:           status: 'FAILURE',
+01337:           rawPayload,
+01338:           payloadType: 'unknown',
+01339:           errorCode: 'NFC_PAYLOAD_INVALID',
+01340:           errorMessage: message
+01341:         });
+01342:         if (scanTokenRef.current !== scanToken) return;
+01343:         setScanResult({
+01344:           kind: 'failure',
+01345:           title: '扫描失败',
+01346:           message
+01347:         });
+01348:         return;
+01349:       }
+01350: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 28 页 / 共 103 页 =====
+01351:       void recordNfcReadEvent({
+01352:         status: 'SUCCESS',
+01353:         rawPayload,
+01354:         parsedUserId: invite.userId,
+01355:         payloadType: 'invite'
+01356:       });
+01357: 
+01358:       const resolved = await api.resolveInvite(invite.userId);
+01359:       await api.createFriendRequest(resolved.user.id);
+01360:       if (scanTokenRef.current !== scanToken) return;
+01361: 
+01362:       setScanResult({
+01363:         kind: 'success',
+01364:         title: '扫描成功',
+01365:         message: `已识别到 ${resolved.user.displayName} 的邀请，好友申请已发送。`
+01366:       });
+01367:     } catch (error) {
+01368:       const message = getErrorMessage(error);
+01369:       void recordNfcReadEvent({
+01370:         status: 'FAILURE',
+01371:         rawPayload,
+01372:         payloadType: 'unknown',
+01373:         errorCode: getNfcErrorCode(error),
+01374:         errorMessage: message
+01375:       });
+01376:       if (scanTokenRef.current !== scanToken) return;
+01377:       setScanResult({
+01378:         kind: 'failure',
+01379:         title: '扫描失败',
+01380:         message
+01381:       });
+01382:     } finally {
+01383:       if (scanTokenRef.current === scanToken) {
+01384:         setScanning(false);
+01385:       }
+01386:     }
+01387:   }, [busy, currentUser, scanPanelVisible, scanResult, scanning]);
+01388: 
+01389:   const openScanPanel = () => {
+01390:     if (busy || scanning) return;
+01391:     setNfcPanelState({ kind: 'idle' });
+01392:     setScanResult(null);
+01393:     setScanPanelVisible(true);
+01394:     setScanTrigger((value) => value + 1);
+01395:   };
+01396: 
+01397:   const closeScanPanel = () => {
+01398:     scanTokenRef.current += 1;
+01399:     setScanning(false);
+01400:     setNfcPanelState({ kind: 'idle' });
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 29 页 / 共 103 页 =====
+01401:     setScanResult(null);
+01402:     setScanPanelVisible(false);
+01403:   };
+01404: 
+01405:   const continueScanning = () => {
+01406:     if (busy || scanning) return;
+01407:     setNfcPanelState({ kind: 'idle' });
+01408:     setScanResult(null);
+01409:     setScanTrigger((value) => value + 1);
+01410:   };
+01411: 
+01412:   useEffect(() => {
+01413:     if (!scanPanelVisible || scanning || scanResult || scanTrigger === 0 || !currentUser) return;
+01414:     void beginNfcScan();
+01415:   }, [beginNfcScan, currentUser, scanPanelVisible, scanResult, scanTrigger, scanning]);
+01416: 
+01417:   const searchManualFriend = async () => {
+01418:     if (!currentUser || busy) return;
+01419:     const query = manualPayload.trim();
+01420:     if (!query) {
+01421:       Alert.alert('请输入内容', '可以输入对方的 username、ID 或手机号。');
+01422:       return;
+01423:     }
+01424:     setBusy(true);
+01425:     try {
+01426:       const result = await api.searchFriend(query);
+01427:       setSearchedUser(result.user);
+01428:     } catch (error) {
+01429:       const message = error instanceof Error ? error.message : '没有找到这个用户。';
+01430:       setSearchedUser(null);
+01431:       Alert.alert('查找失败', message);
+01432:     } finally {
+01433:       setBusy(false);
+01434:     }
+01435:   };
+01436: 
+01437:   const sendFriendRequest = async () => {
+01438:     if (!searchedUser || busy) return;
+01439:     setBusy(true);
+01440:     try {
+01441:       await api.createFriendRequest(searchedUser.id);
+01442:       Alert.alert('申请已发送', `已向 ${searchedUser.displayName} 发送好友申请。`);
+01443:       onDone?.();
+01444:     } catch (error) {
+01445:       const message = error instanceof Error ? error.message : '无法发送好友申请。';
+01446:       Alert.alert('发送失败', message);
+01447:     } finally {
+01448:       setBusy(false);
+01449:     }
+01450:   };
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 30 页 / 共 103 页 =====
+01451: 
+01452:   return (
+01453:     <View style={styles.card}>
+01454:       <View style={styles.badge}>
+01455:         <Text style={styles.badgeText}>NFC Link</Text>
+01456:       </View>
+01457:       <Text style={styles.title}>贴一下卡片，伙伴就位</Text>
+01458:       <Text style={styles.copy}>扫描带邀请的 NFC 卡片；也可以输入对方 username、ID 或手机号发送好友申请。</Text>
+01459:       <TextInput
+01460:         value={manualPayload}
+01461:         onChangeText={setManualPayload}
+01462:         autoCapitalize="none"
+01463:         autoCorrect={false}
+01464:         placeholder="输入 username、ID 或手机号"
+01465:         placeholderTextColor={colors.muted}
+01466:         style={styles.input}
+01467:       />
+01468:       {searchedUser ? (
+01469:         <View style={styles.resultCard}>
+01470:           <View style={styles.resultAvatar}>
+01471:             <Text style={styles.resultAvatarText}>{searchedUser.avatar || searchedUser.displayName.slice(0, 1)}</Text>
+01472:           </View>
+01473:           <View style={styles.resultBody}>
+01474:             <Text style={styles.resultName}>{searchedUser.displayName}</Text>
+01475:             <Text style={styles.resultHint}>{searchedUser.username ? `@${searchedUser.username}` : searchedUser.phone ?? searchedUser.id}</Text>
+01476:           </View>
+01477:           <Pressable style={[styles.sendButton, busy ? styles.disabledButton : null]} onPress={sendFriendRequest} disabled={busy}>
+01478:             <Text style={styles.sendText}>发送申请</Text>
+01479:           </Pressable>
+01480:         </View>
+01481:       ) : null}
+01482:       <View style={styles.actions}>
+01483:         <Pressable style={[styles.actionButton, styles.primaryButton]} onPress={openScanPanel} disabled={busy || scanning}>
+01484:           <Text style={styles.primaryText}>扫描 NFC</Text>
+01485:         </Pressable>
+01486:         <Pressable style={[styles.actionButton, styles.secondaryButton]} onPress={searchManualFriend} disabled={busy || scanning}>
+01487:           <Text style={styles.secondaryText}>查找用户</Text>
+01488:         </Pressable>
+01489:       </View>
+01490:       {busy ? <ActivityIndicator /> : null}
+01491: 
+01492:       <Modal visible={scanPanelVisible} transparent animationType="fade" onRequestClose={closeScanPanel}>
+01493:         <KeyboardAvoidingView style={modalStyles.backdrop} behavior={getModalKeyboardAvoidingBehavior()}>
+01494:           <Pressable accessibilityLabel="关闭 NFC 扫描面板" style={modalStyles.scrim} onPress={closeScanPanel} />
+01495:           <View style={modalStyles.frame}>
+01496:             <View style={styles.scanSheet}>
+01497:               <View style={modalStyles.handle} />
+01498:               <View style={modalStyles.header}>
+01499:                 <View style={modalStyles.titleGroup}>
+01500:                   <Text style={modalStyles.title}>靠近 NFC</Text>
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 74 页 / 共 103 页 =====
+03651: import jakarta.persistence.Entity;
+03652: import jakarta.persistence.Id;
+03653: import jakarta.persistence.Table;
+03654: import java.time.Instant;
+03655: 
+03656: @Entity
+03657: @Table(name = "credentials")
+03658: public class CredentialEntity {
+03659:   @Id
+03660:   @Column(name = "user_id", length = 64)
+03661:   private String userId;
+03662: 
+03663:   @Column(name = "password_hash", nullable = false)
+03664:   private String passwordHash;
+03665: 
+03666:   @Column(name = "password_updated_at", nullable = false)
+03667:   private Instant passwordUpdatedAt;
+03668: 
+03669:   public String getUserId() {
+03670:     return userId;
+03671:   }
+03672: 
+03673:   public void setUserId(String userId) {
+03674:     this.userId = userId;
+03675:   }
+03676: 
+03677:   public String getPasswordHash() {
+03678:     return passwordHash;
+03679:   }
+03680: 
+03681:   public void setPasswordHash(String passwordHash) {
+03682:     this.passwordHash = passwordHash;
+03683:   }
+03684: 
+03685:   public Instant getPasswordUpdatedAt() {
+03686:     return passwordUpdatedAt;
+03687:   }
+03688: 
+03689:   public void setPasswordUpdatedAt(Instant passwordUpdatedAt) {
+03690:     this.passwordUpdatedAt = passwordUpdatedAt;
+03691:   }
+03692: }
+03693: 
+03694: // ============================================================
+03695: // File: .\apps\server\src\main\java\com\ciliao\server\domain\FriendRequestEntity.java
+03696: // ============================================================
+03697: package com.ciliao.server.domain;
+03698: 
+03699: import jakarta.persistence.Column;
+03700: import jakarta.persistence.Entity;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 75 页 / 共 103 页 =====
+03701: import jakarta.persistence.EnumType;
+03702: import jakarta.persistence.Enumerated;
+03703: import jakarta.persistence.GeneratedValue;
+03704: import jakarta.persistence.GenerationType;
+03705: import jakarta.persistence.Id;
+03706: import jakarta.persistence.Table;
+03707: import jakarta.persistence.UniqueConstraint;
+03708: import java.time.Instant;
+03709: 
+03710: @Entity
+03711: @Table(
+03712:     name = "friend_requests",
+03713:     uniqueConstraints = @UniqueConstraint(columnNames = {"requester_id", "recipient_id"}))
+03714: public class FriendRequestEntity {
+03715:   @Id
+03716:   @GeneratedValue(strategy = GenerationType.IDENTITY)
+03717:   private Long id;
+03718: 
+03719:   @Column(name = "requester_id", nullable = false, length = 64)
+03720:   private String requesterId;
+03721: 
+03722:   @Column(name = "recipient_id", nullable = false, length = 64)
+03723:   private String recipientId;
+03724: 
+03725:   @Enumerated(EnumType.STRING)
+03726:   @Column(nullable = false, length = 16)
+03727:   private FriendRequestStatus status;
+03728: 
+03729:   @Column(name = "created_at", nullable = false)
+03730:   private Instant createdAt;
+03731: 
+03732:   @Column(name = "responded_at")
+03733:   private Instant respondedAt;
+03734: 
+03735:   public Long getId() {
+03736:     return id;
+03737:   }
+03738: 
+03739:   public String getRequesterId() {
+03740:     return requesterId;
+03741:   }
+03742: 
+03743:   public void setRequesterId(String requesterId) {
+03744:     this.requesterId = requesterId;
+03745:   }
+03746: 
+03747:   public String getRecipientId() {
+03748:     return recipientId;
+03749:   }
+03750: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 76 页 / 共 103 页 =====
+03751:   public void setRecipientId(String recipientId) {
+03752:     this.recipientId = recipientId;
+03753:   }
+03754: 
+03755:   public FriendRequestStatus getStatus() {
+03756:     return status;
+03757:   }
+03758: 
+03759:   public void setStatus(FriendRequestStatus status) {
+03760:     this.status = status;
+03761:   }
+03762: 
+03763:   public Instant getCreatedAt() {
+03764:     return createdAt;
+03765:   }
+03766: 
+03767:   public void setCreatedAt(Instant createdAt) {
+03768:     this.createdAt = createdAt;
+03769:   }
+03770: 
+03771:   public Instant getRespondedAt() {
+03772:     return respondedAt;
+03773:   }
+03774: 
+03775:   public void setRespondedAt(Instant respondedAt) {
+03776:     this.respondedAt = respondedAt;
+03777:   }
+03778: }
+03779: 
+03780: // ============================================================
+03781: // File: .\apps\server\src\main\java\com\ciliao\server\domain\FriendRequestStatus.java
+03782: // ============================================================
+03783: package com.ciliao.server.domain;
+03784: 
+03785: public enum FriendRequestStatus {
+03786:   PENDING,
+03787:   ACCEPTED,
+03788:   REJECTED
+03789: }
+03790: 
+03791: // ============================================================
+03792: // File: .\apps\server\src\main\java\com\ciliao\server\domain\MessageEntity.java
+03793: // ============================================================
+03794: package com.ciliao.server.domain;
+03795: 
+03796: import jakarta.persistence.Column;
+03797: import jakarta.persistence.Entity;
+03798: import jakarta.persistence.Id;
+03799: import jakarta.persistence.Table;
+03800: import java.time.Instant;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 77 页 / 共 103 页 =====
+03801: 
+03802: @Entity
+03803: @Table(name = "messages")
+03804: public class MessageEntity {
+03805:   @Id
+03806:   private String id;
+03807: 
+03808:   @Column(name = "conversation_id")
+03809:   private String conversationId;
+03810:   @Column(name = "sender_id")
+03811:   private String senderId;
+03812:   @Column(name = "recipient_id")
+03813:   private String recipientId;
+03814: 
+03815:   @Column(nullable = false, length = 2000)
+03816:   private String text;
+03817: 
+03818:   @Column(name = "created_at")
+03819:   private Instant createdAt;
+03820: 
+03821:   public String getId() {
+03822:     return id;
+03823:   }
+03824: 
+03825:   public void setId(String id) {
+03826:     this.id = id;
+03827:   }
+03828: 
+03829:   public String getConversationId() {
+03830:     return conversationId;
+03831:   }
+03832: 
+03833:   public void setConversationId(String conversationId) {
+03834:     this.conversationId = conversationId;
+03835:   }
+03836: 
+03837:   public String getSenderId() {
+03838:     return senderId;
+03839:   }
+03840: 
+03841:   public void setSenderId(String senderId) {
+03842:     this.senderId = senderId;
+03843:   }
+03844: 
+03845:   public String getRecipientId() {
+03846:     return recipientId;
+03847:   }
+03848: 
+03849:   public void setRecipientId(String recipientId) {
+03850:     this.recipientId = recipientId;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 78 页 / 共 103 页 =====
+03851:   }
+03852: 
+03853:   public String getText() {
+03854:     return text;
+03855:   }
+03856: 
+03857:   public void setText(String text) {
+03858:     this.text = text;
+03859:   }
+03860: 
+03861:   public Instant getCreatedAt() {
+03862:     return createdAt;
+03863:   }
+03864: 
+03865:   public void setCreatedAt(Instant createdAt) {
+03866:     this.createdAt = createdAt;
+03867:   }
+03868: }
+03869: 
+03870: // ============================================================
+03871: // File: .\apps\server\src\main\java\com\ciliao\server\domain\MockSmsCodeEntity.java
+03872: // ============================================================
+03873: package com.ciliao.server.domain;
+03874: 
+03875: import jakarta.persistence.Entity;
+03876: import jakarta.persistence.GeneratedValue;
+03877: import jakarta.persistence.GenerationType;
+03878: import jakarta.persistence.Id;
+03879: import jakarta.persistence.Column;
+03880: import jakarta.persistence.Table;
+03881: import java.time.Instant;
+03882: 
+03883: @Entity
+03884: @Table(name = "mock_sms_codes")
+03885: public class MockSmsCodeEntity {
+03886:   @Id
+03887:   @GeneratedValue(strategy = GenerationType.IDENTITY)
+03888:   private Long id;
+03889: 
+03890:   private String phone;
+03891:   private String code;
+03892:   private String purpose;
+03893:   @Column(name = "expires_at")
+03894:   private Instant expiresAt;
+03895:   @Column(name = "consumed_at")
+03896:   private Instant consumedAt;
+03897: 
+03898:   public Long getId() {
+03899:     return id;
+03900:   }
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 79 页 / 共 103 页 =====
+03901: 
+03902:   public String getPhone() {
+03903:     return phone;
+03904:   }
+03905: 
+03906:   public void setPhone(String phone) {
+03907:     this.phone = phone;
+03908:   }
+03909: 
+03910:   public String getCode() {
+03911:     return code;
+03912:   }
+03913: 
+03914:   public void setCode(String code) {
+03915:     this.code = code;
+03916:   }
+03917: 
+03918:   public String getPurpose() {
+03919:     return purpose;
+03920:   }
+03921: 
+03922:   public void setPurpose(String purpose) {
+03923:     this.purpose = purpose;
+03924:   }
+03925: 
+03926:   public Instant getExpiresAt() {
+03927:     return expiresAt;
+03928:   }
+03929: 
+03930:   public void setExpiresAt(Instant expiresAt) {
+03931:     this.expiresAt = expiresAt;
+03932:   }
+03933: 
+03934:   public Instant getConsumedAt() {
+03935:     return consumedAt;
+03936:   }
+03937: 
+03938:   public void setConsumedAt(Instant consumedAt) {
+03939:     this.consumedAt = consumedAt;
+03940:   }
+03941: }
+03942: 
+03943: // ============================================================
+03944: // File: .\apps\server\src\main\java\com\ciliao\server\domain\NfcReadEventEntity.java
+03945: // ============================================================
+03946: package com.ciliao.server.domain;
+03947: 
+03948: import jakarta.persistence.Column;
+03949: import jakarta.persistence.Entity;
+03950: import jakarta.persistence.GeneratedValue;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 80 页 / 共 103 页 =====
+03951: import jakarta.persistence.GenerationType;
+03952: import jakarta.persistence.Id;
+03953: import jakarta.persistence.Table;
+03954: import java.time.Instant;
+03955: 
+03956: @Entity
+03957: @Table(name = "nfc_read_events")
+03958: public class NfcReadEventEntity {
+03959:   @Id
+03960:   @GeneratedValue(strategy = GenerationType.IDENTITY)
+03961:   private Long id;
+03962: 
+03963:   @Column(name = "user_id", nullable = false)
+03964:   private String userId;
+03965: 
+03966:   @Column(nullable = false, length = 16)
+03967:   private String status;
+03968: 
+03969:   @Column(name = "raw_payload", length = 2000)
+03970:   private String rawPayload;
+03971: 
+03972:   @Column(name = "parsed_user_id", length = 64)
+03973:   private String parsedUserId;
+03974: 
+03975:   @Column(name = "payload_type", length = 32)
+03976:   private String payloadType;
+03977: 
+03978:   @Column(name = "error_code", length = 64)
+03979:   private String errorCode;
+03980: 
+03981:   @Column(name = "error_message", length = 255)
+03982:   private String errorMessage;
+03983: 
+03984:   @Column(name = "created_at", nullable = false)
+03985:   private Instant createdAt;
+03986: 
+03987:   public Long getId() {
+03988:     return id;
+03989:   }
+03990: 
+03991:   public String getUserId() {
+03992:     return userId;
+03993:   }
+03994: 
+03995:   public void setUserId(String userId) {
+03996:     this.userId = userId;
+03997:   }
+03998: 
+03999:   public String getStatus() {
+04000:     return status;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 81 页 / 共 103 页 =====
+04001:   }
+04002: 
+04003:   public void setStatus(String status) {
+04004:     this.status = status;
+04005:   }
+04006: 
+04007:   public String getRawPayload() {
+04008:     return rawPayload;
+04009:   }
+04010: 
+04011:   public void setRawPayload(String rawPayload) {
+04012:     this.rawPayload = rawPayload;
+04013:   }
+04014: 
+04015:   public String getParsedUserId() {
+04016:     return parsedUserId;
+04017:   }
+04018: 
+04019:   public void setParsedUserId(String parsedUserId) {
+04020:     this.parsedUserId = parsedUserId;
+04021:   }
+04022: 
+04023:   public String getPayloadType() {
+04024:     return payloadType;
+04025:   }
+04026: 
+04027:   public void setPayloadType(String payloadType) {
+04028:     this.payloadType = payloadType;
+04029:   }
+04030: 
+04031:   public String getErrorCode() {
+04032:     return errorCode;
+04033:   }
+04034: 
+04035:   public void setErrorCode(String errorCode) {
+04036:     this.errorCode = errorCode;
+04037:   }
+04038: 
+04039:   public String getErrorMessage() {
+04040:     return errorMessage;
+04041:   }
+04042: 
+04043:   public void setErrorMessage(String errorMessage) {
+04044:     this.errorMessage = errorMessage;
+04045:   }
+04046: 
+04047:   public Instant getCreatedAt() {
+04048:     return createdAt;
+04049:   }
+04050: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 82 页 / 共 103 页 =====
+04051:   public void setCreatedAt(Instant createdAt) {
+04052:     this.createdAt = createdAt;
+04053:   }
+04054: }
+04055: 
+04056: // ============================================================
+04057: // File: .\apps\server\src\main\java\com\ciliao\server\domain\SessionEntity.java
+04058: // ============================================================
+04059: package com.ciliao.server.domain;
+04060: 
+04061: import jakarta.persistence.Column;
+04062: import jakarta.persistence.Entity;
+04063: import jakarta.persistence.Id;
+04064: import jakarta.persistence.Table;
+04065: import java.time.Instant;
+04066: 
+04067: @Entity
+04068: @Table(name = "sessions")
+04069: public class SessionEntity {
+04070:   @Id
+04071:   @Column(length = 96)
+04072:   private String token;
+04073: 
+04074:   @Column(name = "user_id", nullable = false, length = 64)
+04075:   private String userId;
+04076: 
+04077:   @Column(name = "created_at", nullable = false)
+04078:   private Instant createdAt;
+04079: 
+04080:   @Column(name = "revoked_at")
+04081:   private Instant revokedAt;
+04082: 
+04083:   public String getToken() {
+04084:     return token;
+04085:   }
+04086: 
+04087:   public void setToken(String token) {
+04088:     this.token = token;
+04089:   }
+04090: 
+04091:   public String getUserId() {
+04092:     return userId;
+04093:   }
+04094: 
+04095:   public void setUserId(String userId) {
+04096:     this.userId = userId;
+04097:   }
+04098: 
+04099:   public Instant getCreatedAt() {
+04100:     return createdAt;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 83 页 / 共 103 页 =====
+04101:   }
+04102: 
+04103:   public void setCreatedAt(Instant createdAt) {
+04104:     this.createdAt = createdAt;
+04105:   }
+04106: 
+04107:   public Instant getRevokedAt() {
+04108:     return revokedAt;
+04109:   }
+04110: 
+04111:   public void setRevokedAt(Instant revokedAt) {
+04112:     this.revokedAt = revokedAt;
+04113:   }
+04114: }
+04115: 
+04116: // ============================================================
+04117: // File: .\apps\server\src\main\java\com\ciliao\server\domain\UserEntity.java
+04118: // ============================================================
+04119: package com.ciliao.server.domain;
+04120: 
+04121: import jakarta.persistence.Column;
+04122: import jakarta.persistence.Entity;
+04123: import jakarta.persistence.Id;
+04124: import jakarta.persistence.Table;
+04125: import java.time.Instant;
+04126: 
+04127: @Entity
+04128: @Table(name = "users")
+04129: public class UserEntity {
+04130:   @Id
+04131:   @Column(length = 64)
+04132:   private String id;
+04133: 
+04134:   @Column(length = 24, unique = true)
+04135:   private String username;
+04136: 
+04137:   @Column(length = 32, unique = true)
+04138:   private String phone;
+04139: 
+04140:   @Column(name = "phone_verified", nullable = false)
+04141:   private boolean phoneVerified;
+04142: 
+04143:   @Column(name = "display_name", nullable = false, length = 40)
+04144:   private String displayName;
+04145: 
+04146:   @Column(nullable = false, length = 16)
+04147:   private String avatar;
+04148: 
+04149:   @Column(name = "avatar_url", length = 255)
+04150:   private String avatarUrl;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 84 页 / 共 103 页 =====
+04151: 
+04152:   @Column(length = 80)
+04153:   private String signature;
+04154: 
+04155:   @Column(name = "created_at", nullable = false)
+04156:   private Instant createdAt;
+04157: 
+04158:   @Column(name = "updated_at", nullable = false)
+04159:   private Instant updatedAt;
+04160: 
+04161:   public String getId() {
+04162:     return id;
+04163:   }
+04164: 
+04165:   public void setId(String id) {
+04166:     this.id = id;
+04167:   }
+04168: 
+04169:   public String getUsername() {
+04170:     return username;
+04171:   }
+04172: 
+04173:   public void setUsername(String username) {
+04174:     this.username = username;
+04175:   }
+04176: 
+04177:   public String getPhone() {
+04178:     return phone;
+04179:   }
+04180: 
+04181:   public void setPhone(String phone) {
+04182:     this.phone = phone;
+04183:   }
+04184: 
+04185:   public boolean isPhoneVerified() {
+04186:     return phoneVerified;
+04187:   }
+04188: 
+04189:   public void setPhoneVerified(boolean phoneVerified) {
+04190:     this.phoneVerified = phoneVerified;
+04191:   }
+04192: 
+04193:   public String getDisplayName() {
+04194:     return displayName;
+04195:   }
+04196: 
+04197:   public void setDisplayName(String displayName) {
+04198:     this.displayName = displayName;
+04199:   }
+04200: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 85 页 / 共 103 页 =====
+04201:   public String getAvatar() {
+04202:     return avatar;
+04203:   }
+04204: 
+04205:   public void setAvatar(String avatar) {
+04206:     this.avatar = avatar;
+04207:   }
+04208: 
+04209:   public String getAvatarUrl() {
+04210:     return avatarUrl;
+04211:   }
+04212: 
+04213:   public void setAvatarUrl(String avatarUrl) {
+04214:     this.avatarUrl = avatarUrl;
+04215:   }
+04216: 
+04217:   public String getSignature() {
+04218:     return signature;
+04219:   }
+04220: 
+04221:   public void setSignature(String signature) {
+04222:     this.signature = signature;
+04223:   }
+04224: 
+04225:   public Instant getCreatedAt() {
+04226:     return createdAt;
+04227:   }
+04228: 
+04229:   public void setCreatedAt(Instant createdAt) {
+04230:     this.createdAt = createdAt;
+04231:   }
+04232: 
+04233:   public Instant getUpdatedAt() {
+04234:     return updatedAt;
+04235:   }
+04236: 
+04237:   public void setUpdatedAt(Instant updatedAt) {
+04238:     this.updatedAt = updatedAt;
+04239:   }
+04240: }
+04241: 
+04242: // ============================================================
+04243: // File: .\apps\server\src\main\java\com\ciliao\server\repo\ContactRepository.java
+04244: // ============================================================
+04245: package com.ciliao.server.repo;
+04246: 
+04247: import com.ciliao.server.domain.ContactEntity;
+04248: import java.util.List;
+04249: import org.springframework.data.jpa.repository.JpaRepository;
+04250: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 86 页 / 共 103 页 =====
+04251: public interface ContactRepository extends JpaRepository<ContactEntity, Long> {
+04252:   List<ContactEntity> findByOwnerIdOrderByCreatedAtAsc(String ownerId);
+04253: 
+04254:   boolean existsByOwnerIdAndFriendId(String ownerId, String friendId);
+04255: }
+04256: 
+04257: // ============================================================
+04258: // File: .\apps\server\src\main\java\com\ciliao\server\repo\ConversationRepository.java
+04259: // ============================================================
+04260: package com.ciliao.server.repo;
+04261: 
+04262: import com.ciliao.server.domain.ConversationEntity;
+04263: import org.springframework.data.jpa.repository.JpaRepository;
+04264: 
+04265: public interface ConversationRepository extends JpaRepository<ConversationEntity, String> {}
+04266: 
+04267: // ============================================================
+04268: // File: .\apps\server\src\main\java\com\ciliao\server\repo\CredentialRepository.java
+04269: // ============================================================
+04270: package com.ciliao.server.repo;
+04271: 
+04272: import com.ciliao.server.domain.CredentialEntity;
+04273: import org.springframework.data.jpa.repository.JpaRepository;
+04274: 
+04275: public interface CredentialRepository extends JpaRepository<CredentialEntity, String> {}
+04276: 
+04277: // ============================================================
+04278: // File: .\apps\server\src\main\java\com\ciliao\server\repo\FriendRequestRepository.java
+04279: // ============================================================
+04280: package com.ciliao.server.repo;
+04281: 
+04282: import com.ciliao.server.domain.FriendRequestEntity;
+04283: import com.ciliao.server.domain.FriendRequestStatus;
+04284: import java.util.List;
+04285: import java.util.Optional;
+04286: import org.springframework.data.jpa.repository.JpaRepository;
+04287: 
+04288: public interface FriendRequestRepository extends JpaRepository<FriendRequestEntity, Long> {
+04289:   List<FriendRequestEntity> findByRecipientIdOrderByCreatedAtDesc(String recipientId);
+04290: 
+04291:   Optional<FriendRequestEntity> findByRequesterIdAndRecipientId(String requesterId, String recipientId);
+04292: 
+04293:   boolean existsByRequesterIdAndRecipientIdAndStatus(
+04294:       String requesterId, String recipientId, FriendRequestStatus status);
+04295: }
+04296: 
+04297: // ============================================================
+04298: // File: .\apps\server\src\main\java\com\ciliao\server\repo\MessageRepository.java
+04299: // ============================================================
+04300: package com.ciliao.server.repo;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 87 页 / 共 103 页 =====
+04301: 
+04302: import com.ciliao.server.domain.MessageEntity;
+04303: import java.util.List;
+04304: import org.springframework.data.jpa.repository.JpaRepository;
+04305: 
+04306: public interface MessageRepository extends JpaRepository<MessageEntity, String> {
+04307:   List<MessageEntity> findByConversationIdOrderByCreatedAtAsc(String conversationId);
+04308: }
+04309: 
+04310: // ============================================================
+04311: // File: .\apps\server\src\main\java\com\ciliao\server\repo\MockSmsCodeRepository.java
+04312: // ============================================================
+04313: package com.ciliao.server.repo;
+04314: 
+04315: import com.ciliao.server.domain.MockSmsCodeEntity;
+04316: import java.util.Optional;
+04317: import org.springframework.data.jpa.repository.JpaRepository;
+04318: 
+04319: public interface MockSmsCodeRepository extends JpaRepository<MockSmsCodeEntity, Long> {
+04320:   Optional<MockSmsCodeEntity> findFirstByPhoneAndPurposeAndConsumedAtIsNullOrderByIdDesc(String phone, String purpose);
+04321: }
+04322: 
+04323: // ============================================================
+04324: // File: .\apps\server\src\main\java\com\ciliao\server\repo\NfcReadEventRepository.java
+04325: // ============================================================
+04326: package com.ciliao.server.repo;
+04327: 
+04328: import com.ciliao.server.domain.NfcReadEventEntity;
+04329: import org.springframework.data.jpa.repository.JpaRepository;
+04330: 
+04331: public interface NfcReadEventRepository extends JpaRepository<NfcReadEventEntity, Long> {}
+04332: 
+04333: // ============================================================
+04334: // File: .\apps\server\src\main\java\com\ciliao\server\repo\SessionRepository.java
+04335: // ============================================================
+04336: package com.ciliao.server.repo;
+04337: 
+04338: import com.ciliao.server.domain.SessionEntity;
+04339: import java.util.Optional;
+04340: import org.springframework.data.jpa.repository.JpaRepository;
+04341: 
+04342: public interface SessionRepository extends JpaRepository<SessionEntity, String> {
+04343:   Optional<SessionEntity> findByTokenAndRevokedAtIsNull(String token);
+04344: }
+04345: 
+04346: // ============================================================
+04347: // File: .\apps\server\src\main\java\com\ciliao\server\repo\UserRepository.java
+04348: // ============================================================
+04349: package com.ciliao.server.repo;
+04350: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 88 页 / 共 103 页 =====
+04351: import com.ciliao.server.domain.UserEntity;
+04352: import java.util.Optional;
+04353: import org.springframework.data.jpa.repository.JpaRepository;
+04354: 
+04355: public interface UserRepository extends JpaRepository<UserEntity, String> {
+04356:   Optional<UserEntity> findByUsernameIgnoreCase(String username);
+04357: 
+04358:   Optional<UserEntity> findByPhone(String phone);
+04359: 
+04360:   boolean existsByUsernameIgnoreCase(String username);
+04361: 
+04362:   boolean existsByPhone(String phone);
+04363: }
+04364: 
+04365: // ============================================================
+04366: // File: .\apps\server\src\main\java\com\ciliao\server\ServerApplication.java
+04367: // ============================================================
+04368: package com.ciliao.server;
+04369: 
+04370: import com.ciliao.server.config.StorageProperties;
+04371: import com.ciliao.server.service.ChatService;
+04372: import org.springframework.boot.SpringApplication;
+04373: import org.springframework.boot.autoconfigure.SpringBootApplication;
+04374: import org.springframework.boot.context.properties.EnableConfigurationProperties;
+04375: import org.springframework.boot.CommandLineRunner;
+04376: import org.springframework.context.annotation.Bean;
+04377: 
+04378: @SpringBootApplication
+04379: @EnableConfigurationProperties(StorageProperties.class)
+04380: public class ServerApplication {
+04381: 
+04382: 	public static void main(String[] args) {
+04383: 		SpringApplication.run(ServerApplication.class, args);
+04384: 	}
+04385: 
+04386: 	@Bean
+04387: 	CommandLineRunner seedData(ChatService chatService) {
+04388: 		return args -> chatService.seedIfEmpty();
+04389: 	}
+04390: 
+04391: }
+04392: 
+04393: // ============================================================
+04394: // File: .\apps\server\src\main\java\com\ciliao\server\service\AppException.java
+04395: // ============================================================
+04396: package com.ciliao.server.service;
+04397: 
+04398: public class AppException extends RuntimeException {
+04399:   private final int status;
+04400:   private final String code;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 89 页 / 共 103 页 =====
+04401: 
+04402:   public AppException(String message, int status, String code) {
+04403:     super(message);
+04404:     this.status = status;
+04405:     this.code = code;
+04406:   }
+04407: 
+04408:   public int status() {
+04409:     return status;
+04410:   }
+04411: 
+04412:   public String code() {
+04413:     return code;
+04414:   }
+04415: }
+04416: 
+04417: // ============================================================
+04418: // File: .\apps\server\src\main\java\com\ciliao\server\service\ChatService.java
+04419: // ============================================================
+04420: package com.ciliao.server.service;
+04421: 
+04422: import com.ciliao.server.api.Dto.AuthResult;
+04423: import com.ciliao.server.api.Dto.ChatMessage;
+04424: import com.ciliao.server.api.Dto.FriendRequest;
+04425: import com.ciliao.server.api.Dto.MockSmsResult;
+04426: import com.ciliao.server.api.Dto.UserProfile;
+04427: import com.ciliao.server.domain.ContactEntity;
+04428: import com.ciliao.server.domain.ConversationEntity;
+04429: import com.ciliao.server.domain.CredentialEntity;
+04430: import com.ciliao.server.domain.FriendRequestEntity;
+04431: import com.ciliao.server.domain.FriendRequestStatus;
+04432: import com.ciliao.server.domain.MessageEntity;
+04433: import com.ciliao.server.domain.MockSmsCodeEntity;
+04434: import com.ciliao.server.domain.SessionEntity;
+04435: import com.ciliao.server.domain.UserEntity;
+04436: import com.ciliao.server.repo.ContactRepository;
+04437: import com.ciliao.server.repo.ConversationRepository;
+04438: import com.ciliao.server.repo.CredentialRepository;
+04439: import com.ciliao.server.repo.FriendRequestRepository;
+04440: import com.ciliao.server.repo.MessageRepository;
+04441: import com.ciliao.server.repo.MockSmsCodeRepository;
+04442: import com.ciliao.server.repo.SessionRepository;
+04443: import com.ciliao.server.repo.UserRepository;
+04444: import jakarta.transaction.Transactional;
+04445: import java.security.SecureRandom;
+04446: import java.time.Instant;
+04447: import java.time.temporal.ChronoUnit;
+04448: import java.util.Comparator;
+04449: import java.util.HexFormat;
+04450: import java.util.List;
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 90 页 / 共 103 页 =====
+04451: import java.util.Locale;
+04452: import java.util.UUID;
+04453: import org.springframework.security.crypto.password.PasswordEncoder;
+04454: import org.springframework.stereotype.Service;
+04455: 
+04456: @Service
+04457: public class ChatService {
+04458:   private static final SecureRandom RANDOM = new SecureRandom();
+04459:   private static final String SEED_PASSWORD = "password123";
+04460: 
+04461:   private final UserRepository users;
+04462:   private final CredentialRepository credentials;
+04463:   private final SessionRepository sessions;
+04464:   private final MockSmsCodeRepository smsCodes;
+04465:   private final ContactRepository contacts;
+04466:   private final FriendRequestRepository friendRequests;
+04467:   private final ConversationRepository conversations;
+04468:   private final MessageRepository messages;
+04469:   private final PasswordEncoder passwordEncoder;
+04470: 
+04471:   public ChatService(
+04472:       UserRepository users,
+04473:       CredentialRepository credentials,
+04474:       SessionRepository sessions,
+04475:       MockSmsCodeRepository smsCodes,
+04476:       ContactRepository contacts,
+04477:       FriendRequestRepository friendRequests,
+04478:       ConversationRepository conversations,
+04479:       MessageRepository messages,
+04480:       PasswordEncoder passwordEncoder) {
+04481:     this.users = users;
+04482:     this.credentials = credentials;
+04483:     this.sessions = sessions;
+04484:     this.smsCodes = smsCodes;
+04485:     this.contacts = contacts;
+04486:     this.friendRequests = friendRequests;
+04487:     this.conversations = conversations;
+04488:     this.messages = messages;
+04489:     this.passwordEncoder = passwordEncoder;
+04490:   }
+04491: 
+04492:   @Transactional
+04493:   public void seedIfEmpty() {
+04494:     if (users.count() > 0) return;
+04495:     createSeedUser("alice", "alice", "小爱 / 星野", "爱");
+04496:     createSeedUser("bob", "bob", "小波 / 月见", "波");
+04497:     createSeedUser("mika", "mika", "米卡 / 初音", "米");
+04498:   }
+04499: 
+04500:   public List<UserProfile> listUsers() {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 91 页 / 共 103 页 =====
+04501:     return users.findAll().stream()
+04502:         .sorted(Comparator.comparing(UserEntity::getCreatedAt))
+04503:         .map(Mapper::toProfile)
+04504:         .toList();
+04505:   }
+04506: 
+04507:   public UserEntity getUserEntity(String userId) {
+04508:     return users.findById(userId).orElseThrow(() -> new AppException("用户不存在。", 404, "USER_NOT_FOUND"));
+04509:   }
+04510: 
+04511:   public UserProfile getUser(String userId) {
+04512:     return Mapper.toProfile(getUserEntity(userId));
+04513:   }
+04514: 
+04515:   public UserProfile findUserForFriendSearch(String viewerId, String queryInput) {
+04516:     getUserEntity(viewerId);
+04517:     String query = queryInput == null ? "" : queryInput.trim();
+04518:     if (query.isBlank()) {
+04519:       throw new AppException("请输入账号、ID 或手机号。", 400, "FRIEND_QUERY_REQUIRED");
+04520:     }
+04521:     UserEntity user = users.findById(query)
+04522:         .or(() -> users.findByUsernameIgnoreCase(query.toLowerCase(Locale.ROOT)))
+04523:         .or(() -> users.findByPhone(normalizePhoneLenient(query)))
+04524:         .orElseThrow(() -> new AppException("没有找到这个用户。", 404, "FRIEND_USER_NOT_FOUND"));
+04525:     return Mapper.toProfile(user);
+04526:   }
+04527: 
+04528:   @Transactional
+04529:   public AuthResult registerUsername(String usernameInput, String password, String displayNameInput) {
+04530:     String username = normalizeUsername(usernameInput);
+04531:     assertPassword(password);
+04532:     if (users.existsByUsernameIgnoreCase(username)) {
+04533:       throw new AppException("用户名已被注册。", 409, "USERNAME_TAKEN");
+04534:     }
+04535:     UserEntity user = createUser(username, null, false, displayNameInput);
+04536:     savePassword(user.getId(), password);
+04537:     return createAuthResult(user);
+04538:   }
+04539: 
+04540:   @Transactional
+04541:   public MockSmsResult requestMockSms(String phoneInput, String purposeInput) {
+04542:     String phone = normalizePhone(phoneInput);
+04543:     String purpose = "register".equals(purposeInput) ? "register" : "register";
+04544:     if (users.existsByPhone(phone)) {
+04545:       throw new AppException("手机号已被注册。", 409, "PHONE_TAKEN");
+04546:     }
+04547:     MockSmsCodeEntity code = new MockSmsCodeEntity();
+04548:     code.setPhone(phone);
+04549:     code.setPurpose(purpose);
+04550:     code.setCode(randomDigits(6));
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 92 页 / 共 103 页 =====
+04551:     code.setExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
+04552:     smsCodes.save(code);
+04553:     return new MockSmsResult(phone, code.getCode(), code.getExpiresAt());
+04554:   }
+04555: 
+04556:   @Transactional
+04557:   public AuthResult registerPhone(String phoneInput, String codeInput, String password, String displayNameInput) {
+04558:     String phone = normalizePhone(phoneInput);
+04559:     assertPassword(password);
+04560:     if (users.existsByPhone(phone)) {
+04561:       throw new AppException("手机号已被注册。", 409, "PHONE_TAKEN");
+04562:     }
+04563:     MockSmsCodeEntity code = smsCodes.findFirstByPhoneAndPurposeAndConsumedAtIsNullOrderByIdDesc(phone, "register")
+04564:         .orElseThrow(() -> new AppException("验证码不正确。", 400, "PHONE_CODE_INVALID"));
+04565:     if (!code.getCode().equals(codeInput == null ? "" : codeInput.trim())) {
+04566:       throw new AppException("验证码不正确。", 400, "PHONE_CODE_INVALID");
+04567:     }
+04568:     if (code.getExpiresAt().isBefore(Instant.now())) {
+04569:       throw new AppException("验证码已过期。", 400, "PHONE_CODE_EXPIRED");
+04570:     }
+04571:     code.setConsumedAt(Instant.now());
+04572:     smsCodes.save(code);
+04573:     UserEntity user = createUser(null, phone, true, displayNameInput);
+04574:     savePassword(user.getId(), password);
+04575:     return createAuthResult(user);
+04576:   }
+04577: 
+04578:   @Transactional
+04579:   public AuthResult login(String identifier, String password) {
+04580:     UserEntity user = findByIdentifier(identifier);
+04581:     CredentialEntity credential = credentials.findById(user.getId())
+04582:         .orElseThrow(() -> new AppException("账号或密码错误。", 401, "INVALID_CREDENTIALS"));
+04583:     if (!passwordEncoder.matches(password == null ? "" : password, credential.getPasswordHash())) {
+04584:       throw new AppException("账号或密码错误。", 401, "INVALID_CREDENTIALS");
+04585:     }
+04586:     return createAuthResult(user);
+04587:   }
+04588: 
+04589:   public UserEntity authenticate(String token) {
+04590:     if (token == null || token.isBlank()) {
+04591:       throw new AppException("请先登录。", 401, "AUTH_REQUIRED");
+04592:     }
+04593:     SessionEntity session = sessions.findByTokenAndRevokedAtIsNull(token)
+04594:         .orElseThrow(() -> new AppException("登录状态已失效。", 401, "SESSION_INVALID"));
+04595:     return getUserEntity(session.getUserId());
+04596:   }
+04597: 
+04598:   @Transactional
+04599:   public void logout(String token) {
+04600:     sessions.findByTokenAndRevokedAtIsNull(token).ifPresent(session -> {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 93 页 / 共 103 页 =====
+04601:       session.setRevokedAt(Instant.now());
+04602:       sessions.save(session);
+04603:     });
+04604:   }
+04605: 
+04606:   @Transactional
+04607:   public void changePassword(String userId, String oldPassword, String newPassword) {
+04608:     assertPassword(newPassword);
+04609:     CredentialEntity credential = credentials.findById(userId)
+04610:         .orElseThrow(() -> new AppException("当前密码不正确。", 401, "INVALID_OLD_PASSWORD"));
+04611:     if (!passwordEncoder.matches(oldPassword == null ? "" : oldPassword, credential.getPasswordHash())) {
+04612:       throw new AppException("当前密码不正确。", 401, "INVALID_OLD_PASSWORD");
+04613:     }
+04614:     credential.setPasswordHash(passwordEncoder.encode(newPassword));
+04615:     credential.setPasswordUpdatedAt(Instant.now());
+04616:     credentials.save(credential);
+04617:   }
+04618: 
+04619:   public List<UserProfile> listContacts(String ownerId) {
+04620:     return contacts.findByOwnerIdOrderByCreatedAtAsc(ownerId).stream()
+04621:         .map(contact -> users.findById(contact.getFriendId()).orElse(null))
+04622:         .filter(user -> user != null)
+04623:         .map(Mapper::toProfile)
+04624:         .toList();
+04625:   }
+04626: 
+04627:   @Transactional
+04628:   public List<UserProfile> addContact(String ownerId, String friendId) {
+04629:     if (ownerId.equals(friendId)) {
+04630:       throw new AppException("不能把自己添加为好友。", 400, "SELF_CONTACT");
+04631:     }
+04632:     getUserEntity(ownerId);
+04633:     getUserEntity(friendId);
+04634:     ensureContact(ownerId, friendId);
+04635:     ensureContact(friendId, ownerId);
+04636:     return listContacts(ownerId);
+04637:   }
+04638: 
+04639:   public List<FriendRequest> listIncomingFriendRequests(String userId) {
+04640:     getUserEntity(userId);
+04641:     return friendRequests.findByRecipientIdOrderByCreatedAtDesc(userId).stream()
+04642:         .map(this::toFriendRequest)
+04643:         .toList();
+04644:   }
+04645: 
+04646:   @Transactional
+04647:   public FriendRequest createFriendRequest(String requesterId, String recipientId) {
+04648:     if (requesterId.equals(recipientId)) {
+04649:       throw new AppException("不能给自己发送好友申请。", 400, "SELF_FRIEND_REQUEST");
+04650:     }
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 94 页 / 共 103 页 =====
+04651:     getUserEntity(requesterId);
+04652:     getUserEntity(recipientId);
+04653:     if (contacts.existsByOwnerIdAndFriendId(requesterId, recipientId)) {
+04654:       throw new AppException("你们已经是好友了。", 409, "CONTACT_ALREADY_EXISTS");
+04655:     }
+04656:     if (friendRequests.existsByRequesterIdAndRecipientIdAndStatus(
+04657:         requesterId, recipientId, FriendRequestStatus.PENDING)) {
+04658:       throw new AppException("好友申请已发送，请等待对方处理。", 409, "FRIEND_REQUEST_PENDING");
+04659:     }
+04660:     if (friendRequests.existsByRequesterIdAndRecipientIdAndStatus(
+04661:         recipientId, requesterId, FriendRequestStatus.PENDING)) {
+04662:       throw new AppException("对方已经向你发送申请，请到申请列表处理。", 409, "INCOMING_FRIEND_REQUEST_PENDING");
+04663:     }
+04664:     FriendRequestEntity request = friendRequests
+04665:         .findByRequesterIdAndRecipientId(requesterId, recipientId)
+04666:         .orElseGet(FriendRequestEntity::new);
+04667:     request.setRequesterId(requesterId);
+04668:     request.setRecipientId(recipientId);
+04669:     request.setStatus(FriendRequestStatus.PENDING);
+04670:     request.setCreatedAt(Instant.now());
+04671:     request.setRespondedAt(null);
+04672:     return toFriendRequest(friendRequests.save(request));
+04673:   }
+04674: 
+04675:   @Transactional
+04676:   public FriendRequest acceptFriendRequest(String userId, Long requestId) {
+04677:     FriendRequestEntity request = getPendingRequestForRecipient(userId, requestId);
+04678:     request.setStatus(FriendRequestStatus.ACCEPTED);
+04679:     request.setRespondedAt(Instant.now());
+04680:     friendRequests.save(request);
+04681:     ensureContact(userId, request.getRequesterId());
+04682:     ensureContact(request.getRequesterId(), userId);
+04683:     return toFriendRequest(request);
+04684:   }
+04685: 
+04686:   @Transactional
+04687:   public FriendRequest rejectFriendRequest(String userId, Long requestId) {
+04688:     FriendRequestEntity request = getPendingRequestForRecipient(userId, requestId);
+04689:     request.setStatus(FriendRequestStatus.REJECTED);
+04690:     request.setRespondedAt(Instant.now());
+04691:     return toFriendRequest(friendRequests.save(request));
+04692:   }
+04693: 
+04694:   @Transactional
+04695:   public ChatMessage addMessage(String senderId, String recipientId, String textInput) {
+04696:     String text = textInput == null ? "" : textInput.trim();
+04697:     if (text.isBlank()) {
+04698:       throw new AppException("消息内容不能为空。", 400, "EMPTY_MESSAGE");
+04699:     }
+04700:     getUserEntity(senderId);
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 95 页 / 共 103 页 =====
+04701:     getUserEntity(recipientId);
+04702:     if (!contacts.existsByOwnerIdAndFriendId(senderId, recipientId)) {
+04703:       throw new AppException("请先添加对方为好友。", 403, "CONTACT_REQUIRED");
+04704:     }
+04705:     ConversationEntity conversation = ensureConversation(senderId, recipientId);
+04706:     MessageEntity message = new MessageEntity();
+04707:     message.setId(UUID.randomUUID().toString());
+04708:     message.setConversationId(conversation.getId());
+04709:     message.setSenderId(senderId);
+04710:     message.setRecipientId(recipientId);
+04711:     message.setText(text);
+04712:     message.setCreatedAt(Instant.now());
+04713:     messages.save(message);
+04714:     conversation.setUpdatedAt(message.getCreatedAt());
+04715:     conversations.save(conversation);
+04716:     return Mapper.toMessage(message);
+04717:   }
+04718: 
+04719:   public List<ChatMessage> listMessages(String userA, String userB) {
+04720:     getUserEntity(userB);
+04721:     return messages.findByConversationIdOrderByCreatedAtAsc(getConversationId(userA, userB)).stream()
+04722:         .map(Mapper::toMessage)
+04723:         .toList();
+04724:   }
+04725: 
+04726:   @Transactional
+04727:   public UserProfile updateProfile(String userId, String displayNameInput, String signatureInput) {
+04728:     UserEntity user = getUserEntity(userId);
+04729:     if (displayNameInput != null) {
+04730:       String displayName = displayNameInput.trim();
+04731:       if (displayName.isBlank()) {
+04732:         throw new AppException("昵称不能为空。", 400, "DISPLAY_NAME_REQUIRED");
+04733:       }
+04734:       if (displayName.length() > 40) {
+04735:         throw new AppException("昵称不能超过 40 个字符。", 400, "DISPLAY_NAME_TOO_LONG");
+04736:       }
+04737:       user.setDisplayName(displayName);
+04738:       user.setAvatar(firstAvatar(displayName));
+04739:     }
+04740:     if (signatureInput != null) {
+04741:       String signature = signatureInput.trim();
+04742:       if (signature.length() > 80) {
+04743:         throw new AppException("个性签名不能超过 80 个字符。", 400, "SIGNATURE_TOO_LONG");
+04744:       }
+04745:       user.setSignature(signature);
+04746:     }
+04747:     user.setUpdatedAt(Instant.now());
+04748:     return Mapper.toProfile(users.save(user));
+04749:   }
+04750: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 96 页 / 共 103 页 =====
+04751:   @Transactional
+04752:   public UserProfile updateAvatar(String userId, String avatarUrl) {
+04753:     UserEntity user = getUserEntity(userId);
+04754:     user.setAvatarUrl(avatarUrl);
+04755:     user.setUpdatedAt(Instant.now());
+04756:     return Mapper.toProfile(users.save(user));
+04757:   }
+04758: 
+04759:   public static String getConversationId(String userA, String userB) {
+04760:     return userA.compareTo(userB) <= 0 ? userA + "__" + userB : userB + "__" + userA;
+04761:   }
+04762: 
+04763:   private UserEntity createUser(String username, String phone, boolean phoneVerified, String displayNameInput) {
+04764:     String displayName = displayNameInput == null ? "" : displayNameInput.trim();
+04765:     if (displayName.isBlank()) {
+04766:       throw new AppException("昵称不能为空。", 400, "DISPLAY_NAME_REQUIRED");
+04767:     }
+04768:     if (displayName.length() > 40) {
+04769:       throw new AppException("昵称不能超过 40 个字符。", 400, "DISPLAY_NAME_TOO_LONG");
+04770:     }
+04771:     Instant now = Instant.now();
+04772:     UserEntity user = new UserEntity();
+04773:     user.setId(createUserId(username != null ? username : phone != null ? phone : displayName));
+04774:     user.setUsername(username);
+04775:     user.setPhone(phone);
+04776:     user.setPhoneVerified(phoneVerified);
+04777:     user.setDisplayName(displayName);
+04778:     user.setAvatar(firstAvatar(displayName));
+04779:     user.setCreatedAt(now);
+04780:     user.setUpdatedAt(now);
+04781:     return users.save(user);
+04782:   }
+04783: 
+04784:   private void savePassword(String userId, String password) {
+04785:     CredentialEntity credential = new CredentialEntity();
+04786:     credential.setUserId(userId);
+04787:     credential.setPasswordHash(passwordEncoder.encode(password));
+04788:     credential.setPasswordUpdatedAt(Instant.now());
+04789:     credentials.save(credential);
+04790:   }
+04791: 
+04792:   private AuthResult createAuthResult(UserEntity user) {
+04793:     SessionEntity session = new SessionEntity();
+04794:     session.setToken(randomToken());
+04795:     session.setUserId(user.getId());
+04796:     session.setCreatedAt(Instant.now());
+04797:     sessions.save(session);
+04798:     return new AuthResult(session.getToken(), Mapper.toProfile(user));
+04799:   }
+04800: 
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 97 页 / 共 103 页 =====
+04801:   private UserEntity findByIdentifier(String identifierInput) {
+04802:     String identifier = identifierInput == null ? "" : identifierInput.trim();
+04803:     return users.findByUsernameIgnoreCase(identifier.toLowerCase(Locale.ROOT))
+04804:         .or(() -> users.findByPhone(normalizePhoneLenient(identifier)))
+04805:         .orElseThrow(() -> new AppException("账号或密码错误。", 401, "INVALID_CREDENTIALS"));
+04806:   }
+04807: 
+04808:   private void ensureContact(String ownerId, String friendId) {
+04809:     if (!contacts.existsByOwnerIdAndFriendId(ownerId, friendId)) {
+04810:       ContactEntity contact = new ContactEntity();
+04811:       contact.setOwnerId(ownerId);
+04812:       contact.setFriendId(friendId);
+04813:       contact.setCreatedAt(Instant.now());
+04814:       contacts.save(contact);
+04815:     }
+04816:   }
+04817: 
+04818:   private FriendRequestEntity getPendingRequestForRecipient(String userId, Long requestId) {
+04819:     if (requestId == null) {
+04820:       throw new AppException("好友申请不存在。", 404, "FRIEND_REQUEST_NOT_FOUND");
+04821:     }
+04822:     FriendRequestEntity request = friendRequests.findById(requestId)
+04823:         .orElseThrow(() -> new AppException("好友申请不存在。", 404, "FRIEND_REQUEST_NOT_FOUND"));
+04824:     if (!request.getRecipientId().equals(userId)) {
+04825:       throw new AppException("只能处理发给你的好友申请。", 403, "FRIEND_REQUEST_FORBIDDEN");
+04826:     }
+04827:     if (request.getStatus() != FriendRequestStatus.PENDING) {
+04828:       throw new AppException("这个好友申请已经处理过了。", 409, "FRIEND_REQUEST_ALREADY_HANDLED");
+04829:     }
+04830:     return request;
+04831:   }
+04832: 
+04833:   private FriendRequest toFriendRequest(FriendRequestEntity request) {
+04834:     return Mapper.toFriendRequest(
+04835:         request,
+04836:         getUserEntity(request.getRequesterId()),
+04837:         getUserEntity(request.getRecipientId()));
+04838:   }
+04839: 
+04840:   private ConversationEntity ensureConversation(String userA, String userB) {
+04841:     String id = getConversationId(userA, userB);
+04842:     return conversations.findById(id).orElseGet(() -> {
+04843:       Instant now = Instant.now();
+04844:       ConversationEntity conversation = new ConversationEntity();
+04845:       conversation.setId(id);
+04846:       if (userA.compareTo(userB) <= 0) {
+04847:         conversation.setUserAId(userA);
+04848:         conversation.setUserBId(userB);
+04849:       } else {
+04850:         conversation.setUserAId(userB);
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 98 页 / 共 103 页 =====
+04851:         conversation.setUserBId(userA);
+04852:       }
+04853:       conversation.setCreatedAt(now);
+04854:       conversation.setUpdatedAt(now);
+04855:       return conversations.save(conversation);
+04856:     });
+04857:   }
+04858: 
+04859:   private void createSeedUser(String id, String username, String displayName, String avatar) {
+04860:     Instant now = Instant.parse("2026-05-01T00:00:00Z");
+04861:     UserEntity user = new UserEntity();
+04862:     user.setId(id);
+04863:     user.setUsername(username);
+04864:     user.setPhoneVerified(false);
+04865:     user.setDisplayName(displayName);
+04866:     user.setAvatar(avatar);
+04867:     user.setCreatedAt(now);
+04868:     user.setUpdatedAt(now);
+04869:     users.save(user);
+04870:     savePassword(user.getId(), SEED_PASSWORD);
+04871:   }
+04872: 
+04873:   private static String normalizeUsername(String usernameInput) {
+04874:     String username = usernameInput == null ? "" : usernameInput.trim().toLowerCase(Locale.ROOT);
+04875:     if (!username.matches("^[a-zA-Z0-9_-]{3,24}$")) {
+04876:       throw new AppException("用户名需要 3-24 位字母、数字、下划线或短横线。", 400, "USERNAME_INVALID");
+04877:     }
+04878:     return username;
+04879:   }
+04880: 
+04881:   private static String normalizePhone(String phoneInput) {
+04882:     String phone = normalizePhoneLenient(phoneInput);
+04883:     if (!phone.matches("^\\+?\\d{6,15}$")) {
+04884:       throw new AppException("手机号格式不正确。", 400, "PHONE_INVALID");
+04885:     }
+04886:     return phone;
+04887:   }
+04888: 
+04889:   private static String normalizePhoneLenient(String phoneInput) {
+04890:     return (phoneInput == null ? "" : phoneInput.trim()).replace(" ", "").replace("-", "");
+04891:   }
+04892: 
+04893:   private static void assertPassword(String password) {
+04894:     if (password == null || password.length() < 8) {
+04895:       throw new AppException("密码至少需要 8 位。", 400, "PASSWORD_TOO_SHORT");
+04896:     }
+04897:   }
+04898: 
+04899:   private static String firstAvatar(String displayName) {
+04900:     if (displayName == null || displayName.isBlank()) return "次";
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 99 页 / 共 103 页 =====
+04901:     return displayName.substring(0, 1).toUpperCase(Locale.ROOT);
+04902:   }
+04903: 
+04904:   private static String createUserId(String seed) {
+04905:     String base = (seed == null ? "user" : seed)
+04906:         .trim()
+04907:         .toLowerCase(Locale.ROOT)
+04908:         .replaceAll("[^a-z0-9_-]", "")
+04909:         .substring(0, Math.min(20, (seed == null ? "user" : seed).trim().replaceAll("[^a-z0-9_-]", "").length()));
+04910:     if (base.isBlank()) base = "user";
+04911:     return base + "-" + randomHex(4);
+04912:   }
+04913: 
+04914:   private static String randomToken() {
+04915:     return randomHex(32);
+04916:   }
+04917: 
+04918:   private static String randomHex(int byteLength) {
+04919:     byte[] bytes = new byte[byteLength];
+04920:     RANDOM.nextBytes(bytes);
+04921:     return HexFormat.of().formatHex(bytes);
+04922:   }
+04923: 
+04924:   private static String randomDigits(int length) {
+04925:     StringBuilder value = new StringBuilder();
+04926:     for (int i = 0; i < length; i += 1) {
+04927:       value.append(RANDOM.nextInt(10));
+04928:     }
+04929:     return value.toString();
+04930:   }
+04931: }
+04932: 
+04933: // ============================================================
+04934: // File: .\apps\server\src\main\java\com\ciliao\server\service\Mapper.java
+04935: // ============================================================
+04936: package com.ciliao.server.service;
+04937: 
+04938: import com.ciliao.server.api.Dto.ChatMessage;
+04939: import com.ciliao.server.api.Dto.FriendRequest;
+04940: import com.ciliao.server.domain.FriendRequestEntity;
+04941: import com.ciliao.server.api.Dto.UserProfile;
+04942: import com.ciliao.server.domain.MessageEntity;
+04943: import com.ciliao.server.domain.UserEntity;
+04944: 
+04945: public final class Mapper {
+04946:   private Mapper() {}
+04947: 
+04948:   public static UserProfile toProfile(UserEntity user) {
+04949:     return new UserProfile(
+04950:         user.getId(),
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 100 页 / 共 103 页 =====
+04951:         user.getUsername(),
+04952:         user.getPhone(),
+04953:         user.isPhoneVerified(),
+04954:         user.getDisplayName(),
+04955:         user.getAvatar(),
+04956:         user.getAvatarUrl(),
+04957:         user.getSignature(),
+04958:         user.getCreatedAt(),
+04959:         user.getUpdatedAt());
+04960:   }
+04961: 
+04962:   public static ChatMessage toMessage(MessageEntity message) {
+04963:     return new ChatMessage(
+04964:         message.getId(),
+04965:         message.getConversationId(),
+04966:         message.getSenderId(),
+04967:         message.getRecipientId(),
+04968:         message.getText(),
+04969:         message.getCreatedAt());
+04970:   }
+04971: 
+04972:   public static FriendRequest toFriendRequest(
+04973:       FriendRequestEntity request, UserEntity requester, UserEntity recipient) {
+04974:     return new FriendRequest(
+04975:         request.getId(),
+04976:         toProfile(requester),
+04977:         toProfile(recipient),
+04978:         request.getStatus().name(),
+04979:         request.getCreatedAt(),
+04980:         request.getRespondedAt());
+04981:   }
+04982: }
+04983: 
+04984: // ============================================================
+04985: // File: .\apps\server\src\main\java\com\ciliao\server\service\NfcReadEventService.java
+04986: // ============================================================
+04987: package com.ciliao.server.service;
+04988: 
+04989: import com.ciliao.server.api.Dto.RecordNfcReadEventRequest;
+04990: import com.ciliao.server.domain.NfcReadEventEntity;
+04991: import com.ciliao.server.repo.NfcReadEventRepository;
+04992: import jakarta.transaction.Transactional;
+04993: import java.time.Instant;
+04994: import org.springframework.stereotype.Service;
+04995: 
+04996: @Service
+04997: public class NfcReadEventService {
+04998:   private final NfcReadEventRepository events;
+04999: 
+05000:   public NfcReadEventService(NfcReadEventRepository events) {
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 101 页 / 共 103 页 =====
+05001:     this.events = events;
+05002:   }
+05003: 
+05004:   @Transactional
+05005:   public void record(String userId, RecordNfcReadEventRequest request) {
+05006:     if (request == null) {
+05007:       throw new AppException("NFC 读取事件不能为空。", 400, "NFC_EVENT_REQUIRED");
+05008:     }
+05009:     String status = normalizeStatus(request.status());
+05010:     NfcReadEventEntity event = new NfcReadEventEntity();
+05011:     event.setUserId(userId);
+05012:     event.setStatus(status);
+05013:     event.setRawPayload(limit(request.rawPayload(), 2000));
+05014:     event.setParsedUserId(limit(request.parsedUserId(), 64));
+05015:     event.setPayloadType(limit(request.payloadType(), 32));
+05016:     event.setErrorCode(limit(request.errorCode(), 64));
+05017:     event.setErrorMessage(limit(request.errorMessage(), 255));
+05018:     event.setCreatedAt(Instant.now());
+05019:     events.save(event);
+05020:   }
+05021: 
+05022:   private static String normalizeStatus(String status) {
+05023:     String value = status == null ? "" : status.trim().toUpperCase();
+05024:     if (!value.equals("SUCCESS") && !value.equals("FAILURE")) {
+05025:       throw new AppException("NFC 读取事件状态无效。", 400, "NFC_EVENT_STATUS_INVALID");
+05026:     }
+05027:     return value;
+05028:   }
+05029: 
+05030:   private static String limit(String value, int maxLength) {
+05031:     if (value == null) return null;
+05032:     String trimmed = value.trim();
+05033:     if (trimmed.isEmpty()) return null;
+05034:     return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
+05035:   }
+05036: }
+05037: 
+05038: // ============================================================
+05039: // File: .\apps\server\src\main\resources\db\migration\V1__initial_chat_schema.sql
+05040: // ============================================================
+05041: CREATE TABLE users (
+05042:   id VARCHAR(64) PRIMARY KEY,
+05043:   username VARCHAR(24) NULL UNIQUE,
+05044:   phone VARCHAR(32) NULL UNIQUE,
+05045:   phone_verified BOOLEAN NOT NULL,
+05046:   display_name VARCHAR(40) NOT NULL,
+05047:   avatar VARCHAR(16) NOT NULL,
+05048:   avatar_url VARCHAR(255) NULL,
+05049:   created_at TIMESTAMP NOT NULL,
+05050:   updated_at TIMESTAMP NOT NULL
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 102 页 / 共 103 页 =====
+05051: );
+05052: 
+05053: CREATE TABLE credentials (
+05054:   user_id VARCHAR(64) PRIMARY KEY,
+05055:   password_hash VARCHAR(255) NOT NULL,
+05056:   password_updated_at TIMESTAMP NOT NULL,
+05057:   CONSTRAINT fk_credentials_user FOREIGN KEY (user_id) REFERENCES users(id)
+05058: );
+05059: 
+05060: CREATE TABLE sessions (
+05061:   token VARCHAR(96) PRIMARY KEY,
+05062:   user_id VARCHAR(64) NOT NULL,
+05063:   created_at TIMESTAMP NOT NULL,
+05064:   revoked_at TIMESTAMP NULL,
+05065:   INDEX idx_sessions_user_id (user_id),
+05066:   CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id)
+05067: );
+05068: 
+05069: CREATE TABLE mock_sms_codes (
+05070:   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+05071:   phone VARCHAR(32) NOT NULL,
+05072:   code VARCHAR(8) NOT NULL,
+05073:   purpose VARCHAR(32) NOT NULL,
+05074:   expires_at TIMESTAMP NOT NULL,
+05075:   consumed_at TIMESTAMP NULL,
+05076:   INDEX idx_mock_sms_phone (phone)
+05077: );
+05078: 
+05079: CREATE TABLE contacts (
+05080:   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+05081:   owner_id VARCHAR(64) NOT NULL,
+05082:   friend_id VARCHAR(64) NOT NULL,
+05083:   created_at TIMESTAMP NOT NULL,
+05084:   UNIQUE KEY uk_contacts_owner_friend (owner_id, friend_id),
+05085:   INDEX idx_contacts_friend_id (friend_id),
+05086:   CONSTRAINT fk_contacts_owner FOREIGN KEY (owner_id) REFERENCES users(id),
+05087:   CONSTRAINT fk_contacts_friend FOREIGN KEY (friend_id) REFERENCES users(id)
+05088: );
+05089: 
+05090: CREATE TABLE conversations (
+05091:   id VARCHAR(140) PRIMARY KEY,
+05092:   user_a_id VARCHAR(64) NOT NULL,
+05093:   user_b_id VARCHAR(64) NOT NULL,
+05094:   created_at TIMESTAMP NOT NULL,
+05095:   updated_at TIMESTAMP NOT NULL,
+05096:   CONSTRAINT fk_conversations_user_a FOREIGN KEY (user_a_id) REFERENCES users(id),
+05097:   CONSTRAINT fk_conversations_user_b FOREIGN KEY (user_b_id) REFERENCES users(id)
+05098: );
+05099: 
+05100: CREATE TABLE messages (
+===== 次聊 NFC 社交聊天软件 V1.0 源程序 第 103 页 / 共 103 页 =====
+05101:   id VARCHAR(64) PRIMARY KEY,
+05102:   conversation_id VARCHAR(140) NOT NULL,
+05103:   sender_id VARCHAR(64) NOT NULL,
+05104:   recipient_id VARCHAR(64) NOT NULL,
+05105:   text VARCHAR(2000) NOT NULL,
+05106:   created_at TIMESTAMP NOT NULL,
+05107:   INDEX idx_messages_conversation_created (conversation_id, created_at),
+05108:   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+05109:   CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id),
+05110:   CONSTRAINT fk_messages_recipient FOREIGN KEY (recipient_id) REFERENCES users(id)
+05111: );
+05112: 
+05113: // ============================================================
+05114: // File: .\apps\server\src\main\resources\db\migration\V2__add_user_signature.sql
+05115: // ============================================================
+05116: ALTER TABLE users ADD COLUMN signature VARCHAR(80) NULL;
+05117: 
+05118: // ============================================================
+05119: // File: .\apps\server\src\main\resources\db\migration\V3__add_nfc_read_events.sql
+05120: // ============================================================
+05121: CREATE TABLE nfc_read_events (
+05122:   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+05123:   user_id VARCHAR(64) NOT NULL,
+05124:   status VARCHAR(16) NOT NULL,
+05125:   raw_payload VARCHAR(2000) NULL,
+05126:   parsed_user_id VARCHAR(64) NULL,
+05127:   payload_type VARCHAR(32) NULL,
+05128:   error_code VARCHAR(64) NULL,
+05129:   error_message VARCHAR(255) NULL,
+05130:   created_at TIMESTAMP NOT NULL,
+05131:   INDEX idx_nfc_read_events_user_created (user_id, created_at),
+05132:   CONSTRAINT fk_nfc_read_events_user FOREIGN KEY (user_id) REFERENCES users(id)
+05133: );
+05134: 
+05135: // ============================================================
+05136: // File: .\apps\server\src\main\resources\db\migration\V4__add_friend_requests.sql
+05137: // ============================================================
+05138: CREATE TABLE friend_requests (
+05139:   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+05140:   requester_id VARCHAR(64) NOT NULL,
+05141:   recipient_id VARCHAR(64) NOT NULL,
+05142:   status VARCHAR(16) NOT NULL,
+05143:   created_at TIMESTAMP NOT NULL,
+05144:   responded_at TIMESTAMP NULL,
+05145:   UNIQUE KEY uk_friend_requests_requester_recipient (requester_id, recipient_id),
+05146:   INDEX idx_friend_requests_recipient_status (recipient_id, status),
+05147:   INDEX idx_friend_requests_requester_status (requester_id, status),
+05148:   CONSTRAINT fk_friend_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id),
+05149:   CONSTRAINT fk_friend_requests_recipient FOREIGN KEY (recipient_id) REFERENCES users(id)
+05150: );
