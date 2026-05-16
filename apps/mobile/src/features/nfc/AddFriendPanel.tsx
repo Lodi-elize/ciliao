@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { api } from '../../api/client';
 import { useAppStore } from '../../state/appStore';
+import { FeedbackDialog, FeedbackDialogState } from '../../ui/FeedbackDialog';
 import { colors, radius, spacing } from '../../ui/theme';
 import { getModalKeyboardAvoidingBehavior, modalStyles } from '../../ui/modal';
 import { parseInvitePayload } from './invite';
@@ -53,6 +53,7 @@ export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
   const [scanTrigger, setScanTrigger] = useState(0);
   const [nfcPanelState, setNfcPanelState] = useState<NfcPanelState>({ kind: 'idle' });
   const [scanResult, setScanResult] = useState<ScanResultState | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackDialogState | null>(null);
   const [searchedUser, setSearchedUser] = useState<Awaited<ReturnType<typeof api.searchFriend>>['user'] | null>(null);
   const scanTokenRef = useRef(0);
 
@@ -178,7 +179,7 @@ export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
     if (!currentUser || busy) return;
     const query = manualPayload.trim();
     if (!query) {
-      Alert.alert('请输入内容', '可以输入对方的 username、ID 或手机号。');
+      setFeedback({ kind: 'info', title: '请输入内容', message: '可以输入对方的 username、ID 或手机号。' });
       return;
     }
     setBusy(true);
@@ -188,7 +189,7 @@ export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : '没有找到这个用户。';
       setSearchedUser(null);
-      Alert.alert('查找失败', message);
+      setFeedback({ kind: 'error', title: '查找失败', message });
     } finally {
       setBusy(false);
     }
@@ -199,11 +200,11 @@ export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
     setBusy(true);
     try {
       await api.createFriendRequest(searchedUser.id);
-      Alert.alert('申请已发送', `已向 ${searchedUser.displayName} 发送好友申请。`);
-      onDone?.();
+      setFeedback({ kind: 'success', title: '申请已发送', message: `已向 ${searchedUser.displayName} 发送好友申请。` });
+      setSearchedUser(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : '无法发送好友申请。';
-      Alert.alert('发送失败', message);
+      setFeedback({ kind: 'error', title: '发送失败', message });
     } finally {
       setBusy(false);
     }
@@ -301,6 +302,14 @@ export function AddFriendPanel({ onDone }: AddFriendPanelProps) {
           </View>
         </View>
       </Modal>
+      <FeedbackDialog
+        feedback={feedback}
+        onClose={() => {
+          const shouldClosePanel = feedback?.kind === 'success';
+          setFeedback(null);
+          if (shouldClosePanel) onDone?.();
+        }}
+      />
     </View>
   );
 }

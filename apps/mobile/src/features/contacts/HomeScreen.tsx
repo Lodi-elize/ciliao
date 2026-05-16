@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../api/client';
 import { useAppStore } from '../../state/appStore';
 import { Avatar } from '../../ui/Avatar';
+import { FeedbackDialog, FeedbackDialogState } from '../../ui/FeedbackDialog';
 import { colors, radius, shadow, spacing } from '../../ui/theme';
 
 type HomeScreenProps = {
@@ -18,6 +19,7 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
   const removeIncomingFriendRequest = useAppStore((state) => state.removeIncomingFriendRequest);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackDialogState | null>(null);
 
   const loadData = () => {
     setLoading(true);
@@ -42,9 +44,9 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
       const result = await api.acceptFriendRequest(requestId);
       setContacts(result.contacts);
       removeIncomingFriendRequest(requestId);
-      Alert.alert('已同意', '你们现在可以开始聊天了。');
+      setFeedback({ kind: 'success', title: '已同意', message: '你们现在可以开始聊天了。' });
     } catch (cause) {
-      Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法同意好友申请。');
+      setFeedback({ kind: 'error', title: '处理失败', message: cause instanceof Error ? cause.message : '无法同意好友申请。' });
     } finally {
       setLoading(false);
     }
@@ -56,9 +58,9 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
     try {
       await api.rejectFriendRequest(requestId);
       removeIncomingFriendRequest(requestId);
-      Alert.alert('已拒绝', '好友申请已处理。');
+      setFeedback({ kind: 'success', title: '已拒绝', message: '好友申请已处理。' });
     } catch (cause) {
-      Alert.alert('处理失败', cause instanceof Error ? cause.message : '无法拒绝好友申请。');
+      setFeedback({ kind: 'error', title: '处理失败', message: cause instanceof Error ? cause.message : '无法拒绝好友申请。' });
     } finally {
       setLoading(false);
     }
@@ -123,6 +125,7 @@ export function HomeScreen({ onOpenChat, onAddFriend }: HomeScreenProps) {
           </Pressable>
         )}
       />
+      <FeedbackDialog feedback={feedback} onClose={() => setFeedback(null)} />
     </View>
   );
 }

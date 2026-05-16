@@ -1,6 +1,6 @@
 ﻿import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { ChangePasswordScreen } from './features/auth/ChangePasswordScreen';
 import { ChatScreen } from './features/chat/ChatScreen';
@@ -26,6 +26,7 @@ export default function App() {
   const authStatus = useAppStore((state) => state.authStatus);
   const frameSize = usePhoneFrameSize();
   const statusBarPadding = useStatusBarPadding();
+  const keyboardHeight = useKeyboardHeight();
   const phoneFrameStyle = [styles.phoneFrame, frameSize, { paddingTop: statusBarPadding }];
   const nfcInviteLaunch = useNfcInviteLaunch();
   useChatSocket();
@@ -45,6 +46,8 @@ export default function App() {
   }, [authStatus]);
 
   const shellCopy = useMemo(() => getShellCopy(activeTab), [activeTab]);
+  const addFriendSheetMaxHeight = Math.floor(frameSize.height * (keyboardHeight > 0 ? 0.52 : 0.72));
+  const addFriendSheetBottomInset = Math.min(keyboardHeight, Math.floor(frameSize.height * 0.42));
 
   if (authStatus === 'hydrating') {
     return (
@@ -130,28 +133,30 @@ export default function App() {
         </AppShell>
       </View>
       <Modal visible={showAddFriend} transparent animationType="fade" onRequestClose={() => setShowAddFriend(false)}>
-        <KeyboardAvoidingView style={modalStyles.backdrop} behavior={getModalKeyboardAvoidingBehavior()}>
+        <View style={modalStyles.backdrop}>
           <Pressable accessibilityLabel="关闭添加好友面板" style={modalStyles.scrim} onPress={() => setShowAddFriend(false)} />
           <View testID="modal-frame" style={[styles.modalPhoneFrame, frameSize]}>
-            <View style={modalStyles.sheetWrap}>
-              <View style={[modalStyles.sheetSurface, { maxHeight: Math.floor(frameSize.height * 0.72) }]}>
-                <View style={modalStyles.handle} />
-                <View style={modalStyles.header}>
-                  <View style={modalStyles.titleGroup}>
-                    <Text style={modalStyles.title}>添加伙伴</Text>
-                    <Text style={modalStyles.copy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
+            <KeyboardAvoidingView style={styles.modalKeyboardAvoider} behavior={getModalKeyboardAvoidingBehavior()}>
+              <View style={[modalStyles.sheetWrap, { paddingBottom: spacing.md + addFriendSheetBottomInset }]}>
+                <View style={[modalStyles.sheetSurface, { maxHeight: addFriendSheetMaxHeight }]}>
+                  <View style={modalStyles.handle} />
+                  <View style={modalStyles.header}>
+                    <View style={modalStyles.titleGroup}>
+                      <Text style={modalStyles.title}>添加伙伴</Text>
+                      <Text style={modalStyles.copy}>扫描 NFC 卡片，或输入 username、ID、手机号。</Text>
+                    </View>
+                    <Pressable accessibilityLabel="关闭" style={modalStyles.closeButton} onPress={() => setShowAddFriend(false)}>
+                      <Text style={modalStyles.closeText}>×</Text>
+                    </Pressable>
                   </View>
-                  <Pressable accessibilityLabel="关闭" style={modalStyles.closeButton} onPress={() => setShowAddFriend(false)}>
-                    <Text style={modalStyles.closeText}>×</Text>
-                  </Pressable>
+                  <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
+                    <AddFriendPanel onDone={() => setShowAddFriend(false)} />
+                  </ScrollView>
                 </View>
-                <ScrollView bounces={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetScroll}>
-                  <AddFriendPanel onDone={() => setShowAddFriend(false)} />
-                </ScrollView>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
       <NfcInviteLaunchDialog {...nfcInviteLaunch} />
     </SafeAreaView>
@@ -160,6 +165,28 @@ export default function App() {
 
 function useStatusBarPadding() {
   return Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 0;
+}
+
+function useKeyboardHeight() {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  return keyboardHeight;
 }
 
 function getShellCopy(tab: AppTab) {
@@ -193,5 +220,6 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   loadingText: { color: colors.ink, fontWeight: '900' },
   modalPhoneFrame: { justifyContent: 'flex-end', overflow: 'hidden' },
+  modalKeyboardAvoider: { flex: 1, justifyContent: 'flex-end' },
   sheetScroll: { paddingBottom: spacing.xs }
 });
